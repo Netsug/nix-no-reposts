@@ -1,42 +1,45 @@
-// src/content.ts
-
-chrome.storage.local.remove("seenPosts", () => {
-    console.log("Blocked keywords cleared");
-});
-
 function filterPosts() {
     const posts = document.querySelectorAll('article');
 
-    chrome.storage.local.get(["seenPosts"], (result) => {
-        let seenPosts = result.seenPosts || [];
+    try {
+        chrome.storage.local.get(["seenPosts"], (result) => {
+            const seenPosts: Record<string, string> = result.seenPosts || {};
+            const updatedSeen = { ...seenPosts };
 
-        posts.forEach((post) => {
-            const titleElement = post.querySelector('shreddit-post');
+            posts.forEach((post) => {
+                const element = post.querySelector('shreddit-post');
+                if (!element) return;
 
-            if (titleElement) {
-                const titleText = titleElement.getAttribute('post-title')?.toLowerCase() || "";
+                const title = element.getAttribute('post-title')?.toLowerCase() || "";
+                const author = element.getAttribute('post-author')?.toLowerCase() || "";
+                const subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
 
-                if (blockedKeywords.some((keyword: string) => titleText.includes(keyword))) {
-                    (post as HTMLElement).style.display = 'none'; // Hide the post
-                    console.log("Filtered post:", titleText);
+                const key = `${title}|${author}`;
+                const storedSubreddit = seenPosts[key];
+
+                if (storedSubreddit) {
+                    if (storedSubreddit !== subreddit) {
+                        (post as HTMLElement).style.display = 'none';
+                        console.log(`Filtered duplicate from another subreddit: ${title}`);
+                    }
+                    // If same subreddit, show it — nothing to do
                 } else {
-                    // If not already blocked, add this post's title to blockedKeywords
-                    blockedKeywords.push(titleText);
+                    // First time seeing this title+author combo
+                    updatedSeen[key] = subreddit;
+                    // Do not hide
                 }
-            }
-        });
+            });
 
-        // Save the updated blockedKeywords after checking all posts
-        chrome.storage.local.set({ blockedKeywords: [...new Set(blockedKeywords)] }, () => {
-            console.log("Updated blocked keywords:", blockedKeywords);
+            chrome.storage.local.set({ seenPosts: updatedSeen });
         });
-    });
+    } catch (e) {
+        console.error(e);
+    }
 }
 
 filterPosts();
 
-// Optional: Observe for DOM changes and re-filter
 const observer = new MutationObserver(() => {
-    filterPosts(); // Use the same blockedKeywords
+    filterPosts();
 });
 observer.observe(document.body, { childList: true, subtree: true });
