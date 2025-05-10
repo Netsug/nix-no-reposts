@@ -1,4 +1,5 @@
 "use strict";
+// todo: get link instead of title in case of link post?
 function filterPosts() {
     const posts = document.querySelectorAll('article');
     try {
@@ -9,7 +10,7 @@ function filterPosts() {
                 const element = post.querySelector('shreddit-post');
                 if (!element)
                     return;
-                const title = element.getAttribute('post-title')?.toLowerCase() || "";
+                const title = element.getAttribute('content-href')?.toLowerCase() || "";
                 const author = element.getAttribute('post-author')?.toLowerCase() || "";
                 const subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
                 const key = `${title}|${author}`;
@@ -19,7 +20,7 @@ function filterPosts() {
                         post.style.display = 'none';
                         console.log(`Filtered duplicate from another subreddit: ${title}`);
                     }
-                    // If same subreddit, show it — nothing to do
+                    // If same subreddit, show it. Nothing to do
                 }
                 else {
                     // First time seeing this title+author combo
