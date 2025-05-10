@@ -1,47 +1,51 @@
-// todo: get link instead of title in case of link post?
+let seenPosts: Record<string, string> = {};
 
+// Load seenPosts from storage once at every page load
+chrome.storage.local.get(["seenPosts"], (result) => {
+    seenPosts = result.seenPosts || {};
+    filterPosts(); // Initial run after loading storage
+});
+
+// Perform filtering and update seenPosts in memory
 function filterPosts() {
     const posts = document.querySelectorAll('article');
+    let hasUpdates = false;
 
-    try {
-        chrome.storage.local.get(["seenPosts"], (result) => {
-            const seenPosts: Record<string, string> = result.seenPosts || {};
-            const updatedSeen = { ...seenPosts };
+    posts.forEach((post) => {
+        const element = post.querySelector('shreddit-post');
+        if (!element) return;
 
-            posts.forEach((post) => {
-                const element = post.querySelector('shreddit-post');
-                if (!element) return;
+        const contentLink = element.getAttribute('content-href')?.toLowerCase() || "";
+        const author = element.getAttribute('post-author')?.toLowerCase() || "";
+        const subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
 
-                const contentLink = element.getAttribute('content-href')?.toLowerCase() || "";
-                const author = element.getAttribute('post-author')?.toLowerCase() || "";
-                const subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
+        const key = `${contentLink}|${author}`;
+        const storedSubreddit = seenPosts[key];
 
-                const key = `${contentLink}|${author}`;
-                const storedSubreddit = seenPosts[key];
+        if (storedSubreddit) {
+            if (storedSubreddit !== subreddit) {
+                (post as HTMLElement).style.display = 'none';
+                console.log(`Filtered duplicate from another subreddit: ${contentLink}`);
+            }
+        } else {
+            // First time seeing this content+author combo
+            seenPosts[key] = subreddit;
+            hasUpdates = true;
+        }
+    });
 
-                if (storedSubreddit) {
-                    if (storedSubreddit !== subreddit) {
-                        (post as HTMLElement).style.display = 'none';
-                        console.log(`Filtered duplicate from another subreddit: ${contentLink}`);
-                    }
-                    // If same subreddit, show it. Nothing to do
-                } else {
-                    // First time seeing this title+author combo
-                    updatedSeen[key] = subreddit;
-                    // Do not hide
-                }
-            });
-
-            chrome.storage.local.set({ seenPosts: updatedSeen });
-        });
-    } catch (e) {
-        console.error(e);
+    // Save back to storage only if we added something new
+    if (hasUpdates) {
+        chrome.storage.local.set({ seenPosts });
     }
 }
 
-filterPosts();
-
+// Debounced observer to avoid excessive triggering
+let debounceTimer: number;
 const observer = new MutationObserver(() => {
-    filterPosts();
+    clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(() => {
+        filterPosts();
+    }, 200);
 });
 observer.observe(document.body, { childList: true, subtree: true });
