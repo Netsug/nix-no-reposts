@@ -239,39 +239,39 @@
   var require_content = __commonJS({
     "src/content.ts"() {
       var import_blueimp_md5 = __toESM(require_md5());
-      var seenPosts = {};
-      var seenPostsTitle = {};
+      var seenPostsSubreddit = {};
+      var seenPostsID = {};
       var TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1e3;
       function removeOldEntires() {
-        chrome.storage.local.get(["seenPosts"], (result) => {
+        chrome.storage.local.get(["seenPostsSubreddit"], (result) => {
           const now = Date.now();
           let removedEntires = false;
-          const stored = result.seenPosts || {};
-          seenPosts = {};
+          const stored = result.seenPostsSubreddit || {};
+          seenPostsSubreddit = {};
           for (const [key, entry] of Object.entries(stored)) {
             if (now - entry.timestamp < TWO_DAYS_MS) {
-              seenPosts[key] = entry;
+              seenPostsSubreddit[key] = entry;
               removedEntires = true;
             }
           }
           if (removedEntires) {
-            chrome.storage.local.set({ seenPosts });
+            chrome.storage.local.set({ seenPostsSubreddit });
           }
         });
-        chrome.storage.local.get(["seenPostsTitle"], (result) => {
+        chrome.storage.local.get(["seenPostsID"], (result) => {
           const now = Date.now();
           let removedEntires = false;
-          const stored = result.seenPostsTitle || {};
-          seenPostsTitle = {};
+          const stored = result.seenPostsID || {};
+          seenPostsID = {};
           for (const [key, entry] of Object.entries(stored)) {
             if (now - entry.timestamp < TWO_DAYS_MS) {
-              seenPostsTitle[key] = entry;
+              seenPostsID[key] = entry;
               removedEntires = true;
-              console.log("Removing: " + key + " title: " + entry.title);
+              console.log("Removing: " + key + " title: " + entry.postID);
             }
           }
           if (removedEntires) {
-            chrome.storage.local.set({ seenPostsTitle });
+            chrome.storage.local.set({ seenPostsID });
           }
         });
         filterPosts();
@@ -279,53 +279,55 @@
       function filterPosts() {
         const now = Date.now();
         const posts = document.querySelectorAll("article");
-        let hasUpdates = false;
-        let hasUpdatesTitle = false;
+        let hasUpdatesSubreddit = false;
+        let hasUpdatesID = false;
         posts.forEach((post) => {
           const element = post.querySelector("shreddit-post");
           if (!element) return;
-          let hidePost = false;
+          let hideThisPost = false;
           const contentLink = element.getAttribute("content-href")?.toLowerCase() || "";
           const author = element.getAttribute("author")?.toLowerCase() || "";
           const subreddit = element.getAttribute("subreddit-name")?.toLowerCase() || "";
           let key = `${contentLink}|${author}`;
-          const storedSubredditEntry = seenPosts[key];
+          const storedSubredditEntry = seenPostsSubreddit[key];
           if (storedSubredditEntry) {
             if (storedSubredditEntry.subreddit !== subreddit) {
-              hidePost = true;
+              hideThisPost = true;
             }
           } else {
-            seenPosts[key] = {
+            seenPostsSubreddit[key] = {
               subreddit,
               timestamp: now
             };
-            hasUpdates = true;
+            hasUpdatesSubreddit = true;
           }
-          const title = element.getAttribute("post-title") || "";
-          key = `${title}|${author}`;
-          const storedTitleEntry = seenPostsTitle[key];
-          const postID = element.getAttribute("id") || "";
-          if (storedTitleEntry) {
-            if (storedTitleEntry.postID != postID) {
-              hidePost = true;
-              console.log(`Filtered duplicate with similar title: ${title}`);
+          if (!hideThisPost) {
+            const title = element.getAttribute("post-title") || "";
+            key = `${title}|${author}`;
+            const storedTitleEntry = seenPostsID[key];
+            const postID = element.getAttribute("id") || "";
+            if (storedTitleEntry) {
+              if (storedTitleEntry.postID != postID) {
+                hideThisPost = true;
+                console.log(`Filtered duplicate with similar title: ${title}`);
+              }
+            } else {
+              seenPostsID[key] = {
+                postID,
+                timestamp: now
+              };
+              hasUpdatesID = true;
             }
-          } else {
-            seenPostsTitle[key] = {
-              postID,
-              timestamp: now
-            };
-            hasUpdatesTitle = true;
           }
-          if (hidePost) {
+          if (hideThisPost) {
             post.style.display = "none";
           }
         });
-        if (hasUpdates) {
-          chrome.storage.local.set({ seenPosts });
+        if (hasUpdatesSubreddit) {
+          chrome.storage.local.set({ seenPosts: seenPostsSubreddit });
         }
-        if (hasUpdatesTitle) {
-          chrome.storage.local.set({ seenPostsTitle });
+        if (hasUpdatesID) {
+          chrome.storage.local.set({ seenPostsTitle: seenPostsID });
         }
       }
       removeOldEntires();

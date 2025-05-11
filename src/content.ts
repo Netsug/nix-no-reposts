@@ -1,22 +1,20 @@
-//import * as CryptoJS from 'crypto-js';
-
 // TODO: Fix this
 // @ts-ignore
 import md5 from 'blueimp-md5';
 
-type SeenPostEntry = {
+type SeenPostSubredditEntry = {
     subreddit: string;
     timestamp: number; // Unix epoch in milliseconds
 };
 
-type SeenPostTitleEntry = {
+type SeenPostIDEntry = {
     postID: string;
     timestamp: number; // Unix epoch in milliseconds
 };
 
 
-let seenPosts: Record<string, SeenPostEntry> = {};
-let seenPostsTitle: Record<string, SeenPostTitleEntry> = {};
+let seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
+let seenPostsID: Record<string, SeenPostIDEntry> = {};
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1_000; // Two days in milliseconds (time we store each entry) TODO: This seems arbitrary. Any other suggestions for a set length?
 
 function md5hash(data: string): string {
@@ -27,17 +25,17 @@ function md5hash(data: string): string {
 // Load seenPosts at every page load and remove expired entries
 
 function removeOldEntires(): void {
-    chrome.storage.local.get(["seenPosts"], (result) => {
+    chrome.storage.local.get(["seenPostsSubreddit"], (result) => {
         const now = Date.now();
         let removedEntires: boolean = false;
 
-        const stored = result.seenPosts || {};
-        seenPosts = {};
+        const stored = result.seenPostsSubreddit || {};
+        seenPostsSubreddit = {};
 
         // Remove expired entires
-        for (const [key, entry] of Object.entries(stored) as [string, SeenPostEntry][]) {
+        for (const [key, entry] of Object.entries(stored) as [string, SeenPostSubredditEntry][]) {
             if (now - entry.timestamp < TWO_DAYS_MS) {
-                seenPosts[key] = entry;
+                seenPostsSubreddit[key] = entry;
                 removedEntires = true;
                 // console.log("Removing: " + key + " subreddit: " + entry.subreddit);
             }
@@ -45,28 +43,28 @@ function removeOldEntires(): void {
 
         // Update storage in case we pruned expired entries
         if (removedEntires) {
-            chrome.storage.local.set({ seenPosts });
+            chrome.storage.local.set({ seenPostsSubreddit: seenPostsSubreddit });
         }
     });
 
-    chrome.storage.local.get(["seenPostsTitle"], (result) => {
+    chrome.storage.local.get(["seenPostsID"], (result) => {
         const now = Date.now();
         let removedEntires: boolean = false;
-        const stored = result.seenPostsTitle || {};
-        seenPostsTitle = {};
+        const stored = result.seenPostsID || {};
+        seenPostsID = {};
 
         // Remove expired entires
-        for (const [key, entry] of Object.entries(stored) as [string, SeenPostTitleEntry][]) {
+        for (const [key, entry] of Object.entries(stored) as [string, SeenPostIDEntry][]) {
             if (now - entry.timestamp < TWO_DAYS_MS) {
-                seenPostsTitle[key] = entry;
+                seenPostsID[key] = entry;
                 removedEntires = true;
-                console.log("Removing: " + key + " title: " + entry.title);
+                console.log("Removing: " + key + " title: " + entry.postID);
             }
         }
 
         // Update storage in case we pruned expired entries
         if (removedEntires) {
-            chrome.storage.local.set({ seenPostsTitle });
+            chrome.storage.local.set({ seenPostsID: seenPostsID });
         }
 
     })
@@ -81,14 +79,14 @@ function filterPosts() {
     const now = Date.now();
     const posts = document.querySelectorAll('article');
 
-    let hasUpdates: boolean = false;
-    let hasUpdatesTitle: boolean = false;
+    let hasUpdatesSubreddit: boolean = false;
+    let hasUpdatesID: boolean = false;
 
     posts.forEach((post) => {
         const element = post.querySelector('shreddit-post');
         if (!element) return;
 
-        let hidePost: boolean = false;
+        let hideThisPost: boolean = false;
 
         // Anonymize the entries
         //const contentLink = md5hash(element.getAttribute('content-href')?.toLowerCase() || "" );
@@ -100,56 +98,59 @@ function filterPosts() {
         const subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
 
         let key = `${contentLink}|${author}`;
-        const storedSubredditEntry = seenPosts[key];
+        const storedSubredditEntry = seenPostsSubreddit[key];
 
         // If the entry exists...
         if (storedSubredditEntry) {
             // and the entry's subreddit is not equal to this <article> subreddit
             if (storedSubredditEntry.subreddit !== subreddit) {
                 // Hide it
-                hidePost = true;
+                hideThisPost = true;
                 //console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
             }
         } else {
             // First time seeing this content+author combo. Add it to the storage.
-            seenPosts[key] = {
+            seenPostsSubreddit[key] = {
                 subreddit: subreddit,
                 timestamp: now
             }
-            hasUpdates = true;
+            hasUpdatesSubreddit = true;
         }
 
-        const title = element.getAttribute('post-title') || "";
-        key = `${title}|${author}`;
-        
-        const storedTitleEntry = seenPostsTitle[key];
-        const postID = element.getAttribute('id') || "";
+        // Optimize
+        if (!hideThisPost) {
+            const title = element.getAttribute('post-title') || "";
+            key = `${title}|${author}`;
 
-        if (storedTitleEntry) {
-            if (storedTitleEntry.postID != postID) {
-                hidePost = true;
-                console.log(`Filtered duplicate with similar title: ${title}`);
+            const storedTitleEntry = seenPostsID[key];
+            const postID = element.getAttribute('id') || "";
+
+            if (storedTitleEntry) {
+                if (storedTitleEntry.postID != postID) {
+                    hideThisPost = true;
+                    console.log(`Filtered duplicate with similar title: ${title}`);
+                }
+            }
+            else {
+                seenPostsID[key] = {
+                    postID: postID,
+                    timestamp: now
+                }
+                hasUpdatesID = true;
             }
         }
-        else {
-            seenPostsTitle[key] = {
-                postID: postID,
-                timestamp: now
-            }
-            hasUpdatesTitle = true;
-        }
 
-        if (hidePost) {
+        if (hideThisPost) {
             (post as HTMLElement).style.display = 'none';
         }
     });
 
     // Save back to storage only if we added something new
-    if (hasUpdates) {
-        chrome.storage.local.set({ seenPosts });
+    if (hasUpdatesSubreddit) {
+        chrome.storage.local.set({ seenPosts: seenPostsSubreddit });
     }
-    if (hasUpdatesTitle) {
-        chrome.storage.local.set({ seenPostsTitle });
+    if (hasUpdatesID) {
+        chrome.storage.local.set({ seenPostsTitle: seenPostsID });
     }
 }
 
