@@ -242,39 +242,48 @@
       var seenPostsSubreddit = {};
       var seenPostsID = {};
       var TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1e3;
+      function md5hash(data) {
+        return (0, import_blueimp_md5.default)(data);
+      }
       function removeOldEntires() {
-        chrome.storage.local.get(["seenPostsSubreddit"], (result) => {
-          const now = Date.now();
-          let removedEntires = false;
-          const stored = result.seenPostsSubreddit || {};
-          seenPostsSubreddit = {};
-          for (const [key, entry] of Object.entries(stored)) {
-            if (now - entry.timestamp < TWO_DAYS_MS) {
-              seenPostsSubreddit[key] = entry;
-              removedEntires = true;
+        const promise1 = new Promise((resolve) => {
+          chrome.storage.local.get(["seenPostsSubreddit"], (result) => {
+            const now = Date.now();
+            const stored = result.seenPostsSubreddit || {};
+            const newSeenPostsSubreddit = {};
+            const initialEntryCount = Object.keys(stored).length;
+            for (const [key, entry] of Object.entries(stored)) {
+              if (now - entry.timestamp < TWO_DAYS_MS) {
+                newSeenPostsSubreddit[key] = entry;
+              }
             }
-          }
-          if (removedEntires) {
-            chrome.storage.local.set({ seenPostsSubreddit });
-          }
-        });
-        chrome.storage.local.get(["seenPostsID"], (result) => {
-          const now = Date.now();
-          let removedEntires = false;
-          const stored = result.seenPostsID || {};
-          seenPostsID = {};
-          for (const [key, entry] of Object.entries(stored)) {
-            if (now - entry.timestamp < TWO_DAYS_MS) {
-              seenPostsID[key] = entry;
-              removedEntires = true;
-              console.log("Removing: " + key + " title: " + entry.postID);
+            if (Object.keys(newSeenPostsSubreddit).length != initialEntryCount) {
+              chrome.storage.local.set({ seenPostsSubreddit: newSeenPostsSubreddit }, resolve);
+            } else {
+              resolve();
             }
-          }
-          if (removedEntires) {
-            chrome.storage.local.set({ seenPostsID });
-          }
+          });
         });
-        filterPosts();
+        const promise2 = new Promise((resolve) => {
+          chrome.storage.local.get(["seenPostsID"], (result) => {
+            const now = Date.now();
+            const stored = result.seenPostsID || {};
+            const newSeenPostsID = {};
+            const initialEntryCount = Object.keys(stored).length;
+            for (const [key, entry] of Object.entries(stored)) {
+              if (now - entry.timestamp < TWO_DAYS_MS) {
+                newSeenPostsID[key] = entry;
+                console.log("Removing: " + key + " title: " + entry.postID);
+              }
+            }
+            if (Object.keys(newSeenPostsID).length != initialEntryCount) {
+              chrome.storage.local.set({ seenPostsID: newSeenPostsID }, resolve);
+            } else {
+              resolve();
+            }
+          });
+        });
+        return Promise.all([promise1, promise2]);
       }
       function filterPosts() {
         const now = Date.now();
@@ -285,14 +294,15 @@
           const element = post.querySelector("shreddit-post");
           if (!element) return;
           let hideThisPost = false;
-          const contentLink = element.getAttribute("content-href")?.toLowerCase() || "";
-          const author = element.getAttribute("author")?.toLowerCase() || "";
-          const subreddit = element.getAttribute("subreddit-name")?.toLowerCase() || "";
-          let key = `${contentLink}|${author}`;
+          const contentLink = md5hash(element.getAttribute("content-href")?.toLowerCase() || "");
+          const author = md5hash(element.getAttribute("author")?.toLowerCase() || "");
+          const subreddit = md5hash(element.getAttribute("subreddit-name")?.toLowerCase() || "");
+          let key = md5hash(`${contentLink}|${author}`);
           const storedSubredditEntry = seenPostsSubreddit[key];
           if (storedSubredditEntry) {
             if (storedSubredditEntry.subreddit !== subreddit) {
               hideThisPost = true;
+              console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
             }
           } else {
             seenPostsSubreddit[key] = {
@@ -301,44 +311,46 @@
             };
             hasUpdatesSubreddit = true;
           }
-          if (!hideThisPost) {
-            const title = element.getAttribute("post-title") || "";
-            key = `${title}|${author}`;
-            const storedTitleEntry = seenPostsID[key];
-            const postID = element.getAttribute("id") || "";
-            if (storedTitleEntry) {
-              if (storedTitleEntry.postID != postID) {
-                hideThisPost = true;
-                console.log(`Filtered duplicate with similar title: ${title}`);
-              }
-            } else {
-              seenPostsID[key] = {
-                postID,
-                timestamp: now
-              };
-              hasUpdatesID = true;
+          const title = md5hash(element.getAttribute("post-title") || "");
+          const postID = md5hash(element.getAttribute("id") || "");
+          key = md5hash(`${title}|${author}`);
+          const storedTitleEntry = seenPostsID[key];
+          if (storedTitleEntry) {
+            if (storedTitleEntry.postID != postID) {
+              hideThisPost = true;
+              console.log(`Filtered duplicate with similar title: ${title}`);
             }
+          } else {
+            seenPostsID[key] = {
+              postID,
+              timestamp: now
+            };
+            hasUpdatesID = true;
           }
           if (hideThisPost) {
             post.style.display = "none";
           }
         });
         if (hasUpdatesSubreddit) {
-          chrome.storage.local.set({ seenPosts: seenPostsSubreddit });
+          chrome.storage.local.set({ seenPostsSubreddit });
         }
         if (hasUpdatesID) {
-          chrome.storage.local.set({ seenPostsTitle: seenPostsID });
+          chrome.storage.local.set({ seenPostsID });
         }
       }
-      removeOldEntires();
-      var debounceTimer;
-      var observer = new MutationObserver(() => {
-        clearTimeout(debounceTimer);
-        debounceTimer = window.setTimeout(() => {
-          filterPosts();
-        }, 50);
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
+      async function initialize() {
+        await removeOldEntires();
+        filterPosts();
+        let debounceTimer;
+        const observer = new MutationObserver(() => {
+          clearTimeout(debounceTimer);
+          debounceTimer = window.setTimeout(() => {
+            filterPosts();
+          }, 50);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      }
+      initialize();
     }
   });
   require_content();

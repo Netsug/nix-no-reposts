@@ -24,50 +24,60 @@ function md5hash(data: string): string {
 
 // Load seenPosts at every page load and remove expired entries
 
-function removeOldEntires(): void {
-    chrome.storage.local.get(["seenPostsSubreddit"], (result) => {
-        const now = Date.now();
-        let removedEntires: boolean = false;
+async function removeOldEntires(): Promise<void[]> {
+    const promise1 = new Promise<void>((resolve) => {
+        chrome.storage.local.get(["seenPostsSubreddit"], (result) => {
+            const now = Date.now();
+            const stored = result.seenPostsSubreddit || {};
 
-        const stored = result.seenPostsSubreddit || {};
-        seenPostsSubreddit = {};
+            const newSeenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
+            const initialEntryCount = Object.keys(stored).length;
 
-        // Remove expired entires
-        for (const [key, entry] of Object.entries(stored) as [string, SeenPostSubredditEntry][]) {
-            if (now - entry.timestamp < TWO_DAYS_MS) {
-                seenPostsSubreddit[key] = entry;
-                removedEntires = true;
-                // console.log("Removing: " + key + " subreddit: " + entry.subreddit);
+            // Remove expired entires
+            for (const [key, entry] of Object.entries(stored) as [string, SeenPostSubredditEntry][]) {
+                if (now - entry.timestamp < TWO_DAYS_MS) {
+                    newSeenPostsSubreddit[key] = entry;
+                    // console.log("Removing: " + key + " subreddit: " + entry.subreddit);
+                }
             }
-        }
 
-        // Update storage in case we pruned expired entries
-        if (removedEntires) {
-            chrome.storage.local.set({ seenPostsSubreddit: seenPostsSubreddit });
-        }
+            // Update storage in case we pruned expired entries
+            if (Object.keys(newSeenPostsSubreddit).length != initialEntryCount) {
+                chrome.storage.local.set({ seenPostsSubreddit: newSeenPostsSubreddit }, resolve);
+            }
+            else {
+                resolve();
+            }
+        });
     });
 
-    chrome.storage.local.get(["seenPostsID"], (result) => {
-        const now = Date.now();
-        let removedEntires: boolean = false;
-        const stored = result.seenPostsID || {};
-        seenPostsID = {};
+    const promise2 = new Promise<void>((resolve) => {
+        chrome.storage.local.get(["seenPostsID"], (result) => {
+            const now = Date.now();
+            const stored = result.seenPostsID || {};
 
-        // Remove expired entires
-        for (const [key, entry] of Object.entries(stored) as [string, SeenPostIDEntry][]) {
-            if (now - entry.timestamp < TWO_DAYS_MS) {
-                seenPostsID[key] = entry;
-                removedEntires = true;
-                console.log("Removing: " + key + " title: " + entry.postID);
+            const newSeenPostsID: Record<string, SeenPostIDEntry> = {};
+            const initialEntryCount = Object.keys(stored).length;
+
+            // Remove expired entires
+            for (const [key, entry] of Object.entries(stored) as [string, SeenPostIDEntry][]) {
+                if (now - entry.timestamp < TWO_DAYS_MS) {
+                    newSeenPostsID[key] = entry;
+                    console.log("Removing: " + key + " title: " + entry.postID);
+                }
             }
-        }
 
-        // Update storage in case we pruned expired entries
-        if (removedEntires) {
-            chrome.storage.local.set({ seenPostsID: seenPostsID });
-        }
+            // Update storage in case we pruned expired entries
+            if (Object.keys(newSeenPostsID).length != initialEntryCount) {
+                chrome.storage.local.set({ seenPostsID: newSeenPostsID }, resolve);
+            }
+            else {
+                resolve();
+            }
+        })
+    });
 
-    })
+    return Promise.all([promise1, promise2]);
 }
 
 // Perform filtering and update seenPosts in memory
@@ -85,15 +95,15 @@ function filterPosts() {
         let hideThisPost: boolean = false;
 
         // Anonymize the entries
-        //const contentLink = md5hash(element.getAttribute('content-href')?.toLowerCase() || "" );
-        //const author = md5hash(element.getAttribute('author')?.toLowerCase() || "" );
-        //const subreddit = md5hash(element.getAttribute('subreddit-name')?.toLowerCase() || "" );
+        const contentLink = md5hash(element.getAttribute('content-href')?.toLowerCase() || "" );
+        const author = md5hash(element.getAttribute('author')?.toLowerCase() || "" );
+        const subreddit = md5hash(element.getAttribute('subreddit-name')?.toLowerCase() || "" );
 
-        const contentLink = element.getAttribute('content-href')?.toLowerCase() || "";
-        const author = element.getAttribute('author')?.toLowerCase() || "";
-        const subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
+        //const contentLink = element.getAttribute('content-href')?.toLowerCase() || "";
+        //const author = element.getAttribute('author')?.toLowerCase() || "";
+        //const subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
 
-        let key = `${contentLink}|${author}`;
+        let key = md5hash(`${contentLink}|${author}`);
         const storedSubredditEntry = seenPostsSubreddit[key];
 
         // If the entry exists...
@@ -102,7 +112,7 @@ function filterPosts() {
             if (storedSubredditEntry.subreddit !== subreddit) {
                 // Hide it
                 hideThisPost = true;
-                //console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
+                console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
             }
         } else {
             // First time seeing this content+author combo. Add it to the storage.
@@ -113,27 +123,24 @@ function filterPosts() {
             hasUpdatesSubreddit = true;
         }
 
-        // Optimize
-        if (!hideThisPost) {
-            const title = element.getAttribute('post-title') || "";
-            key = `${title}|${author}`;
+        const title = md5hash(element.getAttribute('post-title') || "");
+        const postID = md5hash(element.getAttribute('id') || "");
+        key = md5hash(`${title}|${author}`);
 
-            const storedTitleEntry = seenPostsID[key];
-            const postID = element.getAttribute('id') || "";
+        const storedTitleEntry = seenPostsID[key];
 
-            if (storedTitleEntry) {
-                if (storedTitleEntry.postID != postID) {
-                    hideThisPost = true;
-                    console.log(`Filtered duplicate with similar title: ${title}`);
-                }
+        if (storedTitleEntry) {
+            if (storedTitleEntry.postID != postID) {
+                hideThisPost = true;
+                console.log(`Filtered duplicate with similar title: ${title}`);
             }
-            else {
-                seenPostsID[key] = {
-                    postID: postID,
-                    timestamp: now
-                }
-                hasUpdatesID = true;
+        }
+        else {
+            seenPostsID[key] = {
+                postID: postID,
+                timestamp: now
             }
+            hasUpdatesID = true;
         }
 
         if (hideThisPost) {
@@ -143,26 +150,28 @@ function filterPosts() {
 
     // Save back to storage only if we added something new
     if (hasUpdatesSubreddit) {
-        chrome.storage.local.set({ seenPosts: seenPostsSubreddit });
+        chrome.storage.local.set({ seenPostsSubreddit: seenPostsSubreddit });
     }
     if (hasUpdatesID) {
-        chrome.storage.local.set({ seenPostsTitle: seenPostsID });
+        chrome.storage.local.set({ seenPostsID: seenPostsID });
     }
 }
 
-// Initialize
-removeOldEntires();
-// Start the filtering of the current page
-filterPosts();
+async function initialize() {
+    await removeOldEntires();
+    filterPosts();
 
-// Run filterPosts() every time the DOM changes
-// Debounced observer to avoid excessive triggering
-let debounceTimer: number;
-const observer = new MutationObserver(() => {
-    clearTimeout(debounceTimer);
-    debounceTimer = window.setTimeout(() => {
-        filterPosts();
-    }, 50); // 50 milliseconds after the last DOM change is made, call filterPosts()
-});
+    // Run filterPosts() every time the DOM changes
+    // Debounced observer to avoid excessive triggering
+    let debounceTimer: number;
+    const observer = new MutationObserver(() => {
+        clearTimeout(debounceTimer);
+        debounceTimer = window.setTimeout(() => {
+            filterPosts();
+        }, 50); // 50 milliseconds after the last DOM change is made, call filterPosts()
+    });
 
-observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
+initialize();
