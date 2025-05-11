@@ -24,10 +24,11 @@ function md5hash(data: string): string {
 
 // Load seenPosts at every page load and remove expired entries
 
-async function removeOldEntires(): Promise<void[]> {
+async function removeOldEntries(): Promise<void[]> {
+    const now = Date.now();
+    
     const promise1 = new Promise<void>((resolve) => {
         chrome.storage.local.get(["seenPostsSubreddit"], (result) => {
-            const now = Date.now();
             const stored = result.seenPostsSubreddit || {};
 
             const newSeenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
@@ -53,7 +54,6 @@ async function removeOldEntires(): Promise<void[]> {
 
     const promise2 = new Promise<void>((resolve) => {
         chrome.storage.local.get(["seenPostsID"], (result) => {
-            const now = Date.now();
             const stored = result.seenPostsID || {};
 
             const newSeenPostsID: Record<string, SeenPostIDEntry> = {};
@@ -158,7 +158,7 @@ function filterPosts() {
 }
 
 async function initialize() {
-    await removeOldEntires();
+    await removeOldEntries();
     filterPosts();
 
     // Run filterPosts() every time the DOM changes
