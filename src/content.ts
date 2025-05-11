@@ -9,7 +9,14 @@ type SeenPostEntry = {
     timestamp: number; // Unix epoch in milliseconds
 };
 
+type SeenPostTitleEntry = {
+    postID: string;
+    timestamp: number; // Unix epoch in milliseconds
+};
+
+
 let seenPosts: Record<string, SeenPostEntry> = {};
+let seenPostsTitle: Record<string, SeenPostTitleEntry> = {};
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1_000; // Two days in milliseconds (time we store each entry) TODO: This seems arbitrary. Any other suggestions for a set length?
 
 function md5hash(data: string): string {
@@ -18,50 +25,90 @@ function md5hash(data: string): string {
 }
 
 // Load seenPosts at every page load and remove expired entries
-chrome.storage.local.get(["seenPosts"], (result) => {
-    const now = Date.now();
-    const stored = result.seenPosts || {};
-    seenPosts = {};
 
-    // Remove expired entires
-    for (const [key, entry] of Object.entries(stored) as [string, SeenPostEntry][]) {
-        if (now - entry.timestamp < TWO_DAYS_MS) {
-            seenPosts[key] = entry;
-            // console.log("Removing: " + key + " subreddit: " + entry.subreddit);
+function removeOldEntires(): void {
+    chrome.storage.local.get(["seenPosts"], (result) => {
+        const now = Date.now();
+        let removedEntires: boolean = false;
+
+        const stored = result.seenPosts || {};
+        seenPosts = {};
+
+        // Remove expired entires
+        for (const [key, entry] of Object.entries(stored) as [string, SeenPostEntry][]) {
+            if (now - entry.timestamp < TWO_DAYS_MS) {
+                seenPosts[key] = entry;
+                removedEntires = true;
+                // console.log("Removing: " + key + " subreddit: " + entry.subreddit);
+            }
         }
-    }
 
-    // Update storage in case we pruned expired entries
-    chrome.storage.local.set({ seenPosts });
+        // Update storage in case we pruned expired entries
+        if (removedEntires) {
+            chrome.storage.local.set({ seenPosts });
+        }
+    });
 
+    chrome.storage.local.get(["seenPostsTitle"], (result) => {
+        const now = Date.now();
+        let removedEntires: boolean = false;
+        const stored = result.seenPostsTitle || {};
+        seenPostsTitle = {};
+
+        // Remove expired entires
+        for (const [key, entry] of Object.entries(stored) as [string, SeenPostTitleEntry][]) {
+            if (now - entry.timestamp < TWO_DAYS_MS) {
+                seenPostsTitle[key] = entry;
+                removedEntires = true;
+                console.log("Removing: " + key + " title: " + entry.title);
+            }
+        }
+
+        // Update storage in case we pruned expired entries
+        if (removedEntires) {
+            chrome.storage.local.set({ seenPostsTitle });
+        }
+
+    })
+
+
+    // Start the filtering of the current page
     filterPosts();
-});
+}
 
 // Perform filtering and update seenPosts in memory
 function filterPosts() {
     const now = Date.now();
     const posts = document.querySelectorAll('article');
-    let hasUpdates = false;
+
+    let hasUpdates: boolean = false;
+    let hasUpdatesTitle: boolean = false;
 
     posts.forEach((post) => {
         const element = post.querySelector('shreddit-post');
         if (!element) return;
 
-        // Anonymize the entries
-        const contentLink = md5hash(element.getAttribute('content-href')?.toLowerCase() || "" );
-        const author = md5hash(element.getAttribute('post-author')?.toLowerCase() || "" );
-        const subreddit = md5hash(element.getAttribute('subreddit-name')?.toLowerCase() || "" );
+        let hidePost: boolean = false;
 
-        const key = `${contentLink}|${author}`;
+        // Anonymize the entries
+        //const contentLink = md5hash(element.getAttribute('content-href')?.toLowerCase() || "" );
+        //const author = md5hash(element.getAttribute('author')?.toLowerCase() || "" );
+        //const subreddit = md5hash(element.getAttribute('subreddit-name')?.toLowerCase() || "" );
+
+        const contentLink = element.getAttribute('content-href')?.toLowerCase() || "";
+        const author = element.getAttribute('author')?.toLowerCase() || "";
+        const subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
+
+        let key = `${contentLink}|${author}`;
         const storedSubredditEntry = seenPosts[key];
 
         // If the entry exists...
         if (storedSubredditEntry) {
-            // and the entry's subreddit is equal to this <article> subreddit
+            // and the entry's subreddit is not equal to this <article> subreddit
             if (storedSubredditEntry.subreddit !== subreddit) {
                 // Hide it
-                (post as HTMLElement).style.display = 'none';
-                // console.log(`Filtered duplicate from another subreddit: ${contentLink}`);
+                hidePost = true;
+                //console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
             }
         } else {
             // First time seeing this content+author combo. Add it to the storage.
@@ -71,14 +118,45 @@ function filterPosts() {
             }
             hasUpdates = true;
         }
+
+        const title = element.getAttribute('post-title') || "";
+        key = `${title}|${author}`;
+        
+        const storedTitleEntry = seenPostsTitle[key];
+        const postID = element.getAttribute('id') || "";
+
+        if (storedTitleEntry) {
+            if (storedTitleEntry.postID != postID) {
+                hidePost = true;
+                console.log(`Filtered duplicate with similar title: ${title}`);
+            }
+        }
+        else {
+            seenPostsTitle[key] = {
+                postID: postID,
+                timestamp: now
+            }
+            hasUpdatesTitle = true;
+        }
+
+        if (hidePost) {
+            (post as HTMLElement).style.display = 'none';
+        }
     });
 
     // Save back to storage only if we added something new
     if (hasUpdates) {
         chrome.storage.local.set({ seenPosts });
     }
+    if (hasUpdatesTitle) {
+        chrome.storage.local.set({ seenPostsTitle });
+    }
 }
 
+// Initialize
+removeOldEntires();
+
+// Run filterPosts() every time the DOMS changes
 // Debounced observer to avoid excessive triggering
 let debounceTimer: number;
 const observer = new MutationObserver(() => {

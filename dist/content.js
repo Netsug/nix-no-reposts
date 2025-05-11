@@ -240,37 +240,59 @@
     "src/content.ts"() {
       var import_blueimp_md5 = __toESM(require_md5());
       var seenPosts = {};
+      var seenPostsTitle = {};
       var TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1e3;
-      function md5hash(data) {
-        return (0, import_blueimp_md5.default)(data);
-      }
-      chrome.storage.local.get(["seenPosts"], (result) => {
-        const now = Date.now();
-        const stored = result.seenPosts || {};
-        seenPosts = {};
-        for (const [key, entry] of Object.entries(stored)) {
-          if (now - entry.timestamp < TWO_DAYS_MS) {
-            seenPosts[key] = entry;
+      function removeOldEntires() {
+        chrome.storage.local.get(["seenPosts"], (result) => {
+          const now = Date.now();
+          let removedEntires = false;
+          const stored = result.seenPosts || {};
+          seenPosts = {};
+          for (const [key, entry] of Object.entries(stored)) {
+            if (now - entry.timestamp < TWO_DAYS_MS) {
+              seenPosts[key] = entry;
+              removedEntires = true;
+            }
           }
-        }
-        chrome.storage.local.set({ seenPosts });
+          if (removedEntires) {
+            chrome.storage.local.set({ seenPosts });
+          }
+        });
+        chrome.storage.local.get(["seenPostsTitle"], (result) => {
+          const now = Date.now();
+          let removedEntires = false;
+          const stored = result.seenPostsTitle || {};
+          seenPostsTitle = {};
+          for (const [key, entry] of Object.entries(stored)) {
+            if (now - entry.timestamp < TWO_DAYS_MS) {
+              seenPostsTitle[key] = entry;
+              removedEntires = true;
+              console.log("Removing: " + key + " title: " + entry.title);
+            }
+          }
+          if (removedEntires) {
+            chrome.storage.local.set({ seenPostsTitle });
+          }
+        });
         filterPosts();
-      });
+      }
       function filterPosts() {
         const now = Date.now();
         const posts = document.querySelectorAll("article");
         let hasUpdates = false;
+        let hasUpdatesTitle = false;
         posts.forEach((post) => {
           const element = post.querySelector("shreddit-post");
           if (!element) return;
-          const contentLink = md5hash(element.getAttribute("content-href")?.toLowerCase() || "");
-          const author = md5hash(element.getAttribute("post-author")?.toLowerCase() || "");
-          const subreddit = md5hash(element.getAttribute("subreddit-name")?.toLowerCase() || "");
-          const key = `${contentLink}|${author}`;
+          let hidePost = false;
+          const contentLink = element.getAttribute("content-href")?.toLowerCase() || "";
+          const author = element.getAttribute("author")?.toLowerCase() || "";
+          const subreddit = element.getAttribute("subreddit-name")?.toLowerCase() || "";
+          let key = `${contentLink}|${author}`;
           const storedSubredditEntry = seenPosts[key];
           if (storedSubredditEntry) {
             if (storedSubredditEntry.subreddit !== subreddit) {
-              post.style.display = "none";
+              hidePost = true;
             }
           } else {
             seenPosts[key] = {
@@ -279,11 +301,34 @@
             };
             hasUpdates = true;
           }
+          const title = element.getAttribute("post-title") || "";
+          key = `${title}|${author}`;
+          const storedTitleEntry = seenPostsTitle[key];
+          const postID = element.getAttribute("id") || "";
+          if (storedTitleEntry) {
+            if (storedTitleEntry.postID != postID) {
+              hidePost = true;
+              console.log(`Filtered duplicate with similar title: ${title}`);
+            }
+          } else {
+            seenPostsTitle[key] = {
+              postID,
+              timestamp: now
+            };
+            hasUpdatesTitle = true;
+          }
+          if (hidePost) {
+            post.style.display = "none";
+          }
         });
         if (hasUpdates) {
           chrome.storage.local.set({ seenPosts });
         }
+        if (hasUpdatesTitle) {
+          chrome.storage.local.set({ seenPostsTitle });
+        }
       }
+      removeOldEntires();
       var debounceTimer;
       var observer = new MutationObserver(() => {
         clearTimeout(debounceTimer);
