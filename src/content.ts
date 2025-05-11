@@ -68,10 +68,6 @@ function removeOldEntires(): void {
         }
 
     })
-
-
-    // Start the filtering of the current page
-    filterPosts();
 }
 
 // Perform filtering and update seenPosts in memory
@@ -156,14 +152,17 @@ function filterPosts() {
 
 // Initialize
 removeOldEntires();
+// Start the filtering of the current page
+filterPosts();
 
-// Run filterPosts() every time the DOMS changes
+// Run filterPosts() every time the DOM changes
 // Debounced observer to avoid excessive triggering
 let debounceTimer: number;
 const observer = new MutationObserver(() => {
     clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(() => {
         filterPosts();
-    }, 50);
+    }, 50); // 50 milliseconds after the last DOM change is made, call filterPosts()
 });
+
 observer.observe(document.body, { childList: true, subtree: true });
