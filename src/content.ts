@@ -1,4 +1,8 @@
-import * as CryptoJS from 'crypto-js';
+//import * as CryptoJS from 'crypto-js';
+
+// TODO: Fix this
+// @ts-ignore
+import md5 from 'blueimp-md5';
 
 type SeenPostEntry = {
     subreddit: string;
@@ -9,7 +13,8 @@ let seenPosts: Record<string, SeenPostEntry> = {};
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1_000; // Two days in milliseconds (time we store each entry) TODO: This seems arbitrary. Any other suggestions for a set length?
 
 function md5hash(data: string): string {
-    return CryptoJS.MD5(data).toString(CryptoJS.enc.Hex);
+    //return CryptoJS.MD5(data).toString(CryptoJS.enc.Hex);
+    return md5(data);
 }
 
 // Load seenPosts at every page load and remove expired entries
