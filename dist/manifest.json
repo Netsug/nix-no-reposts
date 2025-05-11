@@ -1,0 +1,28 @@
+{
+    "manifest_version": 3,
+    "name": "Repost Nix",
+    "version": "1.0",
+    "description": "Filters Reddit posts so you only have to see each once!",
+    "icons": {
+        "16": "images/icon16.png",
+        "48": "images/icon48.png",
+        "128": "images/icon128.png"
+    },
+    "permissions": [
+        "storage", 
+        "scripting", 
+        "activeTab" 
+    ],
+    "options_page": "options.html",
+    "content_scripts": [
+        {
+            "matches": [
+                "https://www.reddit.com/*"
+            ],
+            "js": [
+                "dist/content.js"
+            ],
+            "run_at": "document_end"
+        }
+    ]
+}
