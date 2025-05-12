@@ -113,6 +113,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
+    "types/*",
   ],
   "exclude": [
     "node_modules",

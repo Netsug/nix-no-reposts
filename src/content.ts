@@ -1,5 +1,3 @@
-// TODO: Fix this
-// @ts-ignore
 import md5 from 'blueimp-md5';
 
 type SeenPostSubredditEntry = {
@@ -12,12 +10,13 @@ type SeenPostIDEntry = {
     timestamp: number; // Unix epoch in milliseconds
 };
 
-
 let seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
 let seenPostsID: Record<string, SeenPostIDEntry> = {};
+
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1_000; // Two days in milliseconds (time we store each entry) TODO: This seems arbitrary. Any other suggestions for a set length?
 
 let isFilteringCrossposts: boolean = true;
+let isDebugging: boolean = false;
 
 function md5hash(data: string): string {
     return md5(data);
@@ -39,7 +38,9 @@ async function removeOldEntries(): Promise<void> {
         if (now - entry.timestamp < TWO_DAYS_MS) {
             newSeenPostsSubreddit[key] = entry;
         } else {
-            //console.log(`Removing expired subreddit entry: ${key}`);
+            if (isDebugging) {
+                console.log(`Removing expired subreddit entry: ${key}`);
+            }
         }
     }
 
@@ -48,12 +49,11 @@ async function removeOldEntries(): Promise<void> {
         if (now - entry.timestamp < TWO_DAYS_MS) {
             newSeenPostsID[key] = entry;
         } else {
-            //console.log(`Removing expired postID entry: ${key}`);
+            if (isDebugging) {
+                console.log(`Removing expired postID entry: ${key}`);
+            }
         }
     }
-
-    //console.log("Filtered seenPostsSubreddit:", newSeenPostsSubreddit);
-    //console.log("Filtered seenPostsID:", newSeenPostsID);
 
     const changesToSubreddit = Object.keys(newSeenPostsSubreddit).length !== Object.keys(seenPostsSubreddit).length;
     const changesToID = Object.keys(newSeenPostsID).length !== Object.keys(seenPostsID).length;
@@ -85,20 +85,40 @@ function filterPosts() {
         if (!element) return;
 
         let hideThisPost: boolean = false;
-        if (isFilteringCrossposts){
+        if (isFilteringCrossposts) {
             hideThisPost = isCrosspost(element);
+
+            if (isDebugging) {
+                if (hideThisPost) {
+                    console.log("Filtered post based on crosspost");
+                }
+            }
         }
 
+        let contentLink;
+        let author;
+        let subreddit;
+
         // Anonymize the entries
-        const contentLink = md5hash(element.getAttribute('content-href')?.toLowerCase() || "" );
-        const author = md5hash(element.getAttribute('author')?.toLowerCase() || "" );
-        const subreddit = md5hash(element.getAttribute('subreddit-name')?.toLowerCase() || "" );
+        if (isDebugging) {
+            contentLink = element.getAttribute('content-href')?.toLowerCase() || "";
+            author = element.getAttribute('author')?.toLowerCase() || "";
+            subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
+        }
+        else {
+            contentLink = md5hash(element.getAttribute('content-href')?.toLowerCase() || "");
+            author = md5hash(element.getAttribute('author')?.toLowerCase() || "");
+            subreddit = md5hash(element.getAttribute('subreddit-name')?.toLowerCase() || "");
+        }
 
-        //const contentLink = element.getAttribute('content-href')?.toLowerCase() || "";
-        //const author = element.getAttribute('author')?.toLowerCase() || "";
-        //const subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
+        let key;
+        if(isDebugging){
+            key =`${contentLink}|${author}`;
+        }
+        else{
+            key = md5hash(`${contentLink}|${author}`);
+        }
 
-        let key = md5hash(`${contentLink}|${author}`);
         const storedSubredditEntry = seenPostsSubreddit[key];
 
         // If the entry exists...
@@ -107,7 +127,9 @@ function filterPosts() {
             if (storedSubredditEntry.subreddit !== subreddit) {
                 // Hide it
                 hideThisPost = true;
-                console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
+                if (isDebugging) {
+                    console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
+                }
             }
         } else {
             // First time seeing this content+author combo. Add it to the storage.
@@ -118,16 +140,27 @@ function filterPosts() {
             hasUpdatesSubreddit = true;
         }
 
-        const title = md5hash(element.getAttribute('post-title') || "");
-        const postID = md5hash(element.getAttribute('id') || "");
-        key = md5hash(`${title}|${author}`);
+        let title;
+        let postID;
+
+        if (isDebugging) {
+            title = element.getAttribute('post-title') || "";
+            postID = element.getAttribute('id') || "";
+            key = `${title}|${author}`;
+        } else {
+            title = md5hash(element.getAttribute('post-title') || "");
+            postID = md5hash(element.getAttribute('id') || "");
+            key = md5hash(`${title}|${author}`);
+        }
 
         const storedTitleEntry = seenPostsID[key];
 
         if (storedTitleEntry) {
             if (storedTitleEntry.postID != postID) {
                 hideThisPost = true;
-                console.log(`Filtered duplicate with similar title: ${title}`);
+                if (isDebugging) {
+                    console.log(`Filtered duplicate with similar title: ${title}`);
+                }
             }
         }
         else {

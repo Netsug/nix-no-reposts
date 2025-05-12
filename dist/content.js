@@ -243,6 +243,7 @@
       var seenPostsID = {};
       var TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1e3;
       var isFilteringCrossposts = true;
+      var isDebugging = false;
       function md5hash(data) {
         return (0, import_blueimp_md5.default)(data);
       }
@@ -257,12 +258,18 @@
           if (now - entry.timestamp < TWO_DAYS_MS) {
             newSeenPostsSubreddit[key] = entry;
           } else {
+            if (isDebugging) {
+              console.log(`Removing expired subreddit entry: ${key}`);
+            }
           }
         }
         for (const [key, entry] of Object.entries(seenPostsID2)) {
           if (now - entry.timestamp < TWO_DAYS_MS) {
             newSeenPostsID[key] = entry;
           } else {
+            if (isDebugging) {
+              console.log(`Removing expired postID entry: ${key}`);
+            }
           }
         }
         const changesToSubreddit = Object.keys(newSeenPostsSubreddit).length !== Object.keys(seenPostsSubreddit2).length;
@@ -289,16 +296,37 @@
           let hideThisPost = false;
           if (isFilteringCrossposts) {
             hideThisPost = isCrosspost(element);
+            if (isDebugging) {
+              if (hideThisPost) {
+                console.log("Filtered post based on crosspost");
+              }
+            }
           }
-          const contentLink = md5hash(element.getAttribute("content-href")?.toLowerCase() || "");
-          const author = md5hash(element.getAttribute("author")?.toLowerCase() || "");
-          const subreddit = md5hash(element.getAttribute("subreddit-name")?.toLowerCase() || "");
-          let key = md5hash(`${contentLink}|${author}`);
+          let contentLink;
+          let author;
+          let subreddit;
+          if (isDebugging) {
+            contentLink = element.getAttribute("content-href")?.toLowerCase() || "";
+            author = element.getAttribute("author")?.toLowerCase() || "";
+            subreddit = element.getAttribute("subreddit-name")?.toLowerCase() || "";
+          } else {
+            contentLink = md5hash(element.getAttribute("content-href")?.toLowerCase() || "");
+            author = md5hash(element.getAttribute("author")?.toLowerCase() || "");
+            subreddit = md5hash(element.getAttribute("subreddit-name")?.toLowerCase() || "");
+          }
+          let key;
+          if (isDebugging) {
+            key = `${contentLink}|${author}`;
+          } else {
+            key = md5hash(`${contentLink}|${author}`);
+          }
           const storedSubredditEntry = seenPostsSubreddit[key];
           if (storedSubredditEntry) {
             if (storedSubredditEntry.subreddit !== subreddit) {
               hideThisPost = true;
-              console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
+              if (isDebugging) {
+                console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
+              }
             }
           } else {
             seenPostsSubreddit[key] = {
@@ -307,14 +335,24 @@
             };
             hasUpdatesSubreddit = true;
           }
-          const title = md5hash(element.getAttribute("post-title") || "");
-          const postID = md5hash(element.getAttribute("id") || "");
-          key = md5hash(`${title}|${author}`);
+          let title;
+          let postID;
+          if (isDebugging) {
+            title = element.getAttribute("post-title") || "";
+            postID = element.getAttribute("id") || "";
+            key = `${title}|${author}`;
+          } else {
+            title = md5hash(element.getAttribute("post-title") || "");
+            postID = md5hash(element.getAttribute("id") || "");
+            key = md5hash(`${title}|${author}`);
+          }
           const storedTitleEntry = seenPostsID[key];
           if (storedTitleEntry) {
             if (storedTitleEntry.postID != postID) {
               hideThisPost = true;
-              console.log(`Filtered duplicate with similar title: ${title}`);
+              if (isDebugging) {
+                console.log(`Filtered duplicate with similar title: ${title}`);
+              }
             }
           } else {
             seenPostsID[key] = {
