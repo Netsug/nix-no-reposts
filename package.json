@@ -4,10 +4,11 @@
   "description": "",
   "scripts": {
     "build:ts": "tsc --outDir dist",
-    "build:css": "npx @tailwindcss/cli -i ./src/input.css -o ./public/output.css --watch",
+    "build:css": "npx @tailwindcss/cli -i ./src/input.css -o ./public/output.css",
+    "build:js": "npx esbuild src/content.ts --outfile=dist/content.js --bundle --minify --format=esm --target=es2022 && npx esbuild src/options.ts --outfile=dist/options.js --bundle --minify --format=esm --target=es2022",
     "watch:ts": "tsc --outDir dist --watch",
     "watch:css": "npx @tailwindcss/cli -i ./src/input.css -o ./public/output.css --watch",
-    "build": "npm run build:ts && npm run build:css",
+    "build": "npm run build:ts && npm run build:css && npm run build:js",
     "watch": "npm run watch:ts & npm run watch:css",
     "package": "zip -r nix-reposts-settings.zip dist manifest.json options.html",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -15,7 +16,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
     "@types/chrome": "^0.0.320",
     "autoprefixer": "^10.4.21",

@@ -22,7 +22,7 @@ label {
 
 label .peer {
     background-color: #2d3748; /* base background for the switch */
-    transition: all 0.3s ease-in-out;
+    transition: all 0.2s ease-in-out;
 }
 
 label .peer-checked {
@@ -40,7 +40,6 @@ label .peer:before {
     left: 0.25rem;
     width: 1rem;
     height: 1rem;
-    background-color: #fff;
     border-radius: 50%;
     transition: transform 0.3s ease-in-out;
 }

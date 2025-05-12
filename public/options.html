@@ -9,37 +9,113 @@
 </head>
 
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
-    <div class="w-full max-w-md p-6 rounded-2xl bg-gray-800 shadow-xl">
-        <h1 class="text-2xl font-bold mb-6 text-center">Nix Reposts Settings</h1>
+    <div class="w-full flex-col items-center space-y-6">
+        <div class="w-full max-w-2xl mx-auto p-6 rounded-2xl bg-gray-800 shadow-xl">
+            <h2 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">Extension Settings</h2>
 
-        <div class="flex items-center justify-between mb-4">
-            <span class="text-lg">Debug Mode</span>
-            <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="debugModeCheckbox" class="sr-only peer" onclick="toggleCheckbox(this)">
-                <div
-                    class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+            <div class="space-y-4 text-lg">
+                <!-- Range Input -->
+                <div class="flex items-center justify-between">
+                    <span>Delete stored posts after...</span>
+                    <input type="range" id="persistentStorage" step="1" min="0" max="5" class="accent-blue-500 w-40">
+                    <div id="persistentStorageLabel" class="min-w-[80px] text-right">1 hour</div>
                 </div>
-                <div
-                    class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+
+                <!-- Crosspost Toggle -->
+                <div class="flex items-center justify-between">
+                    <span>Hide Crossposts</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="crosspostCheckbox" class="sr-only peer"
+                            onclick="toggleCheckbox(this)">
+                        <div
+                            class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+                        </div>
+                        <div
+                            class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+                        </div>
+                    </label>
                 </div>
-            </label>
+
+                <div class="flex items-center justify-between">
+                    <span>Only enable extension in incognito mode</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="incognitoModeCheckbox" class="sr-only peer" onclick="toggleCheckbox(this)">
+                        <div
+                            class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+                        </div>
+                        <div
+                            class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Experimental Settings -->
+                <details class="mt-2">
+                    <summary class="cursor-pointer text-gray-400 hover:text-white transition">Experimental Settings
+                    </summary>
+
+                    <div class="space-y-4 mt-4 pl-2">
+                        <div class="flex items-center justify-between">
+                            <span>Enable less aggressive pruning</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="pruneCheckbox" class="sr-only peer"
+                                    onclick="toggleCheckbox(this)">
+                                <div
+                                    class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+                                </div>
+                                <div
+                                    class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+                                </div>
+                            </label>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span>Debug Mode</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="debugModeCheckbox" class="sr-only peer"
+                                    onclick="toggleCheckbox(this)">
+                                <div
+                                    class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+                                </div>
+                                <div
+                                    class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Reset Button -->
+                <button id="resetButton"
+                    class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl transition">
+                    Reset All Settings
+                </button>
+            </div>
         </div>
 
-        <div class="flex items-center justify-between mb-4">
-            <span class="text-lg">Filter Crossposts</span>
-            <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="crosspostCheckbox" class="sr-only peer" onclick="toggleCheckbox(this)">
-                <div
-                    class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
-                </div>
-                <div
-                    class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
-                </div>
-            </label>
+        <div class="w-full max-w-2xl mx-auto p-6 rounded-2xl bg-gray-800 shadow-xl">
+            <h2 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">Storage Stats</h2>
+
+            <div class="space-y-2 text-lg">
+                <p>
+                    <span class="font-medium text-gray-300">Tracked posts:</span>
+                    <span id="trackedEntries" class="text-white">Loading...</span>
+                </p>
+                <p>
+                    <span class="font-medium text-gray-300">Estimated storage size:</span>
+                    <span id="storageSize" class="text-white">Calculating...</span>
+                </p>
+            </div>
+
+            <button id="deleteStorage"
+                class="w-full mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl transition text-xl">
+                Clear tracked posts
+            </button>
         </div>
+
+
     </div>
-
-    <script type="module" src="dist/./options.js"></script>
+    <script type="module" src="../dist/options.js"></script>
 </body>
 
 </html>
