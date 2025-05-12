@@ -13,9 +13,27 @@ type SeenPostIDEntry = {
 let seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
 let seenPostsID: Record<string, SeenPostIDEntry> = {};
 
-let deleteThreshold: number = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
-let isFilteringCrossposts: boolean = true;
-let isDebugging: boolean = true;
+const thresholdLabels = ['6 hours', '1 day', '2 days', '1 week', '2 weeks', 'Never'];
+
+function formatThresholdLabel(val: number): string {
+    return thresholdLabels[val] ?? 'Unknown';
+}
+
+function getThresholdMilliseconds(val: number): number | null {
+    const msValues = [
+        6 * 60 * 60 * 1000,       // 6 hours
+        24 * 60 * 60 * 1000,      // 1 day
+        2 * 24 * 60 * 60 * 1000,  // 2 days
+        7 * 24 * 60 * 60 * 1000,  // 1 week
+        14 * 24 * 60 * 60 * 1000, // 2 weeks
+        null                     // Never
+    ];
+    return msValues[val] ?? null;
+}
+
+let deleteThreshold: number | null = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
+let isFilteringCrossposts: boolean = false;
+let isDebugging: boolean = false;
 let lessAggressivePruning: boolean = false;
 let incognitoExclusiveMode: boolean = false;
 
@@ -25,15 +43,36 @@ function md5hash(data: string): string {
 
 async function loadSettings(): Promise<void> {
     const settings = await new Promise<any>((resolve) =>
-        chrome.storage.local.get(['deleteThreshold', 'isFilteringCrossposts', 'isDebugging', 'lessAggressivePruning', 'incognito'], resolve)
+        chrome.storage.local.get(['deleteThreshold', 'hideCrossposts', 'debugMode', 'lessAggressivePruning', 'incognito'], resolve)
     );
 
     // Use default values if the setting is not available
     deleteThreshold = settings.deleteThreshold ?? deleteThreshold;
-    isFilteringCrossposts = settings.isFilteringCrossposts ?? isFilteringCrossposts;
-    isDebugging = settings.isDebugging ?? isDebugging;
+    isFilteringCrossposts = settings.hideCrossposts ?? isFilteringCrossposts;
+    isDebugging = settings.debugMode ?? isDebugging;
     lessAggressivePruning = settings.lessAggressivePruning ?? lessAggressivePruning;
     incognitoExclusiveMode = settings.incognito ?? incognitoExclusiveMode;
+
+    // Check if deleteThreshold is null first
+    let thresholdMs: number | null = null;
+    if (deleteThreshold !== null) {
+        thresholdMs = getThresholdMilliseconds(deleteThreshold);
+    }
+
+    if (thresholdMs !== null) {
+        const cutoffTime = Date.now() - thresholdMs;
+        deleteThreshold = cutoffTime;
+
+        if (isDebugging) {
+            console.log(`Cutoff time is ${new Date(cutoffTime).toISOString()}`);
+        }
+    } else {
+        // "Never" case — do not delete anything
+        deleteThreshold = null;
+        if (isDebugging) {
+            console.log("Delete threshold is set to 'Never'; no deletions will occur.");
+        }
+    }
 
     if (isDebugging) {
         console.log("Settings loaded: ", settings);
@@ -43,6 +82,11 @@ async function loadSettings(): Promise<void> {
 
 async function removeOldEntries(): Promise<void> {
     const now = Date.now();
+
+    // Delete after "Never" is selected 
+    if (deleteThreshold === null){
+        return;
+    }
 
     // Get the data from storage
     const { seenPostsSubreddit = {}, seenPostsID = {} } = await new Promise<Record<string, any>>((resolve) =>
@@ -114,28 +158,18 @@ function filterPosts() {
             }
         }
 
-        let contentLink;
-        let author;
-        let subreddit;
+        const contentLinkRaw = element.getAttribute('content-href')?.toLowerCase() || "";
+        const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
+        const subredditRaw = element.getAttribute('subreddit-name')?.toLowerCase() || "";
 
-        // Anonymize the entries
-        if (isDebugging) {
-            contentLink = element.getAttribute('content-href')?.toLowerCase() || "";
-            author = element.getAttribute('author')?.toLowerCase() || "";
-            subreddit = element.getAttribute('subreddit-name')?.toLowerCase() || "";
-        }
-        else {
-            contentLink = md5hash(element.getAttribute('content-href')?.toLowerCase() || "");
-            author = md5hash(element.getAttribute('author')?.toLowerCase() || "");
-            subreddit = md5hash(element.getAttribute('subreddit-name')?.toLowerCase() || "");
-        }
+        const contentLink = md5hash(contentLinkRaw);
+        const author = md5hash(authorRaw);
+        const subreddit = md5hash(subredditRaw);
 
-        let key;
+        const key = md5hash(`${contentLink}|${author}`);
+
         if (isDebugging) {
-            key = `${contentLink}|${author}`;
-        }
-        else {
-            key = md5hash(`${contentLink}|${author}`);
+            console.log(`Key (content|author): ${key}, Subreddit: ${subredditRaw}`);
         }
 
         const storedSubredditEntry = seenPostsSubreddit[key];
@@ -159,40 +193,39 @@ function filterPosts() {
             hasUpdatesSubreddit = true;
         }
 
-        let title;
-        let postID;
+        // Always use raw values initially for consistent hashing and debug logging
+        const titleRaw = element.getAttribute('post-title') || "";
+        const postIDRaw = element.getAttribute('id') || "";
+
+        // Hash for consistent storage
+        const title = md5hash(titleRaw);
+        const postID = md5hash(postIDRaw);
+        const postKey = md5hash(`${title}|${author}`); // 'author' is already hashed above
 
         if (isDebugging) {
-            title = element.getAttribute('post-title') || "";
-            postID = element.getAttribute('id') || "";
-            key = `${title}|${author}`;
-        } else {
-            title = md5hash(element.getAttribute('post-title') || "");
-            postID = md5hash(element.getAttribute('id') || "");
-            key = md5hash(`${title}|${author}`);
+            console.log(`Post Key (title|author): ${titleRaw}|${author}`);
         }
 
-        if (!hideThisPost) { // Avoid storing the same post twice - save memory
-            if (!lessAggressivePruning) { // lessAggressivePruning == true -> don't remove posts based on author + title combo 
-
-                const storedTitleEntry = seenPostsID[key];
+        if (!hideThisPost) {
+            if (!lessAggressivePruning) {
+                const storedTitleEntry = seenPostsID[postKey];
                 if (storedTitleEntry) {
-                    if (storedTitleEntry.postID != postID) {
+                    if (storedTitleEntry.postID !== postID) {
                         hideThisPost = true;
                         if (isDebugging) {
-                            console.log(`Filtered duplicate with similar title: ${title}`);
+                            console.log(`Filtered duplicate with similar title: ${titleRaw}`);
                         }
                     }
-                }
-                else {
-                    seenPostsID[key] = {
+                } else {
+                    seenPostsID[postKey] = {
                         postID: postID,
                         timestamp: now
-                    }
+                    };
                     hasUpdatesID = true;
                 }
             }
         }
+
 
         if (hideThisPost) {
             (post as HTMLElement).style.display = 'none';

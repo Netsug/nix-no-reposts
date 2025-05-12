@@ -40,7 +40,8 @@
                 <div class="flex items-center justify-between">
                     <span>Only enable extension in incognito mode</span>
                     <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="incognitoModeCheckbox" class="sr-only peer" onclick="toggleCheckbox(this)">
+                        <input type="checkbox" id="incognitoModeCheckbox" class="sr-only peer"
+                            onclick="toggleCheckbox(this)">
                         <div
                             class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
                         </div>
@@ -116,6 +117,52 @@
 
 
     </div>
+
+<!-- Modal for Incognito Mode Confirmation -->
+<div id="incognitoWarningModal" class="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 hidden">
+    <div class="bg-gray-800 text-white rounded-lg shadow-lg w-120 p-6">
+        <h2 class="text-2xl font-semibold text-center mb-4">Enabling Incognito Mode</h2>
+        <p class="text-lg mb-4">This extension will only be active in Incognito Mode if it is also enabled in Chrome settings.</p>
+            <p>Make sure you've manually enabled the extension for incognito access in your browser's settings.</p>
+            <p>To enable this extension in Incognito Mode, follow these steps:</p>
+            <br>
+            <ol class="list-decimal list-inside mb-4">
+                <li>Open Chrome and click the three dots in the top-right corner.</li>
+                <li>Go to 'Extensions' and click 'Manage Extensions' in the left sidebar.</li>
+                <li>Find this extension in the list and click 'Details'.</li>
+                <li>Scroll down to 'Allow in Incognito' and toggle it on.</li>
+            </ol>
+            <br>
+            <p>Do you wish to proceed?</p>
+        <div class="flex justify-between">
+            <button id="cancelButton"
+                class="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500">Cancel</button>
+            <button id="proceedButton"
+                class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Proceed</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Debug Mode Confirmation -->
+<div id="debugModeWarningModal" class="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 hidden">
+    <div class="bg-gray-800 text-white rounded-lg shadow-lg w-120 p-6">
+        <h2 class="text-2xl font-semibold text-center mb-4">Enabling Debug Mode</h2>
+        <p class="text-lg mb-4">WARNING: Debug Mode is intended for development and troubleshooting only.</p>
+        <ul class="list-disc list-inside mb-4">
+            <li>This may store & log sensitive information.</li>
+            <li>This may generate a large amount of log output and impact performance.</li>
+            <li>Only enable this for debugging purposes and on trusted devices.</li>
+        </ul>
+        <p>Are you sure you want to enable Debug Mode?</p>
+        <div class="flex justify-between">
+            <button id="debugCancelButton"
+                class="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500">Cancel</button>
+            <button id="debugProceedButton"
+                class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Proceed</button>
+        </div>
+    </div>
+</div>
+
     <script type="module" src="../dist/options.js"></script>
 </body>
 

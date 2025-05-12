@@ -40,19 +40,17 @@ function formatThresholdLabel(value: number): string {
 }
 
 // Set up event listeners
+// Set up event listeners
 function setupEventHandlers() {
     const rangeInput = document.getElementById('persistentStorage') as HTMLInputElement;
     const rangeLabel = document.getElementById('persistentStorageLabel')!;
     const crosspostCheckbox = document.getElementById('crosspostCheckbox') as HTMLInputElement;
     const incognitoModeCheckbox = document.getElementById('incognitoModeCheckbox') as HTMLInputElement;
-
     const pruneCheckbox = document.getElementById('pruneCheckbox') as HTMLInputElement;
     const debugCheckbox = document.getElementById('debugModeCheckbox') as HTMLInputElement;
 
     const resetButton = document.getElementById('resetButton')!;
     const deleteStorageButton = document.getElementById('deleteStorage')!;
-    //const trackedEntries = document.getElementById('trackedEntries')!;
-    //const storageSize = document.getElementById('storageSize')!;
 
     // Range input
     rangeInput.addEventListener('input', () => {
@@ -66,17 +64,62 @@ function setupEventHandlers() {
         saveSetting('hideCrossposts', crosspostCheckbox.checked);
     });
 
-    incognitoModeCheckbox.addEventListener('change', () => {
-        saveSetting('incognito', incognitoModeCheckbox.checked);
-    })
+    incognitoModeCheckbox.addEventListener('change', (e) => {
+        const target = e.target as HTMLInputElement;
+        if (target.checked) {
+            const modal = document.getElementById('incognitoWarningModal')!;
+            const cancelButton = document.getElementById('cancelButton')!;
+            const proceedButton = document.getElementById('proceedButton')!;
+
+            // Show the modal
+            modal.classList.remove('hidden');
+
+            // Handle cancel button
+            cancelButton.addEventListener('click', () => {
+                target.checked = false;
+                modal.classList.add('hidden');
+            });
+
+            // Handle proceed button
+            proceedButton.addEventListener('click', () => {
+                saveSetting('incognito', target.checked);
+                modal.classList.add('hidden');
+            });
+        } else {
+            saveSetting('incognito', target.checked);
+        }
+    });
+    
 
     pruneCheckbox.addEventListener('change', () => {
         saveSetting('lessAggressivePruning', pruneCheckbox.checked);
     });
 
-    debugCheckbox.addEventListener('change', () => {
-        saveSetting('debugMode', debugCheckbox.checked);
-    });
+    debugCheckbox.addEventListener('change', (e) => {
+        const target = e.target as HTMLInputElement;
+        if (target.checked) {
+            const modal = document.getElementById('debugModeWarningModal')!;
+            const cancelButton = document.getElementById('debugCancelButton')!;
+            const proceedButton = document.getElementById('debugProceedButton')!;
+
+            // Show the modal
+            modal.classList.remove('hidden');
+
+            // Handle cancel button
+            cancelButton.addEventListener('click', () => {
+                target.checked = false;
+                modal.classList.add('hidden');
+            });
+
+            // Handle proceed button
+            proceedButton.addEventListener('click', () => {
+                saveSetting('debugMode', target.checked);
+                modal.classList.add('hidden');
+            });
+        } else {
+            saveSetting('debugMode', target.checked);
+        }
+    });    
 
     // Reset
     resetButton.addEventListener('click', () => {
