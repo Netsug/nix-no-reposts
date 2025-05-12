@@ -243,7 +243,7 @@
       var seenPostsID = {};
       var TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1e3;
       var isFilteringCrossposts = true;
-      var isDebugging = false;
+      var isDebugging = true;
       function md5hash(data) {
         return (0, import_blueimp_md5.default)(data);
       }

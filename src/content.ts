@@ -16,7 +16,7 @@ let seenPostsID: Record<string, SeenPostIDEntry> = {};
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1_000; // Two days in milliseconds (time we store each entry) TODO: This seems arbitrary. Any other suggestions for a set length?
 
 let isFilteringCrossposts: boolean = true;
-let isDebugging: boolean = false;
+let isDebugging: boolean = true;
 
 function md5hash(data: string): string {
     return md5(data);

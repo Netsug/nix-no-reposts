@@ -2,7 +2,6 @@
   "name": "ts",
   "version": "1.0.0",
   "description": "",
-  "main": "main.js",
   "scripts": {
     "build": "node build.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -13,11 +12,11 @@
   "type": "commonjs",
   "devDependencies": {
     "@types/chrome": "^0.0.320",
-    "esbuild": "^0.25.4"
+    "esbuild": "^0.25.4",
+    "typescript": "5.8.3"
   },
   "dependencies": {
     "blueimp-md5": "^2.19.0",
-    "crypto-js": "^4.2.0",
     "ts": "file:"
   }
 }

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Extension Settings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-md p-6 rounded-2xl bg-gray-800 shadow-xl">
+        <h1 class="text-2xl font-bold mb-6 text-center">Extension Settings</h1>
+
+        <div class="flex items-center justify-between mb-4">
+            <span class="text-lg">Debug Mode</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="debugModeCheckbox" class="sr-only peer">
+                <div
+                    class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+                </div>
+                <div
+                    class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+                </div>
+            </label>
+        </div>
+
+        <div class="flex items-center justify-between mb-4">
+            <span class="text-lg">Filter Crossposts</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="crosspostCheckbox" class="sr-only peer">
+                <div
+                    class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+                </div>
+                <div
+                    class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+                </div>
+            </label>
+        </div>
+    </div>
+
+    <script type="module" src="./options.ts"></script>
+</body>
+
+</html>
