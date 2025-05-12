@@ -242,48 +242,41 @@
       var seenPostsSubreddit = {};
       var seenPostsID = {};
       var TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1e3;
+      var isFilteringCrossposts = true;
       function md5hash(data) {
         return (0, import_blueimp_md5.default)(data);
       }
-      function removeOldEntires() {
-        const promise1 = new Promise((resolve) => {
-          chrome.storage.local.get(["seenPostsSubreddit"], (result) => {
-            const now = Date.now();
-            const stored = result.seenPostsSubreddit || {};
-            const newSeenPostsSubreddit = {};
-            const initialEntryCount = Object.keys(stored).length;
-            for (const [key, entry] of Object.entries(stored)) {
-              if (now - entry.timestamp < TWO_DAYS_MS) {
-                newSeenPostsSubreddit[key] = entry;
-              }
-            }
-            if (Object.keys(newSeenPostsSubreddit).length != initialEntryCount) {
-              chrome.storage.local.set({ seenPostsSubreddit: newSeenPostsSubreddit }, resolve);
-            } else {
-              resolve();
-            }
-          });
-        });
-        const promise2 = new Promise((resolve) => {
-          chrome.storage.local.get(["seenPostsID"], (result) => {
-            const now = Date.now();
-            const stored = result.seenPostsID || {};
-            const newSeenPostsID = {};
-            const initialEntryCount = Object.keys(stored).length;
-            for (const [key, entry] of Object.entries(stored)) {
-              if (now - entry.timestamp < TWO_DAYS_MS) {
-                newSeenPostsID[key] = entry;
-                console.log("Removing: " + key + " title: " + entry.postID);
-              }
-            }
-            if (Object.keys(newSeenPostsID).length != initialEntryCount) {
-              chrome.storage.local.set({ seenPostsID: newSeenPostsID }, resolve);
-            } else {
-              resolve();
-            }
-          });
-        });
-        return Promise.all([promise1, promise2]);
+      async function removeOldEntries() {
+        const now = Date.now();
+        const { seenPostsSubreddit: seenPostsSubreddit2 = {}, seenPostsID: seenPostsID2 = {} } = await new Promise(
+          (resolve) => chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID"], resolve)
+        );
+        const newSeenPostsSubreddit = {};
+        const newSeenPostsID = {};
+        for (const [key, entry] of Object.entries(seenPostsSubreddit2)) {
+          if (now - entry.timestamp < TWO_DAYS_MS) {
+            newSeenPostsSubreddit[key] = entry;
+          } else {
+          }
+        }
+        for (const [key, entry] of Object.entries(seenPostsID2)) {
+          if (now - entry.timestamp < TWO_DAYS_MS) {
+            newSeenPostsID[key] = entry;
+          } else {
+          }
+        }
+        const changesToSubreddit = Object.keys(newSeenPostsSubreddit).length !== Object.keys(seenPostsSubreddit2).length;
+        const changesToID = Object.keys(newSeenPostsID).length !== Object.keys(seenPostsID2).length;
+        if (changesToSubreddit) {
+          await new Promise(
+            (resolve) => chrome.storage.local.set({ seenPostsSubreddit: newSeenPostsSubreddit }, resolve)
+          );
+        }
+        if (changesToID) {
+          await new Promise(
+            (resolve) => chrome.storage.local.set({ seenPostsID: newSeenPostsID }, resolve)
+          );
+        }
       }
       function filterPosts() {
         const now = Date.now();
@@ -294,6 +287,9 @@
           const element = post.querySelector("shreddit-post");
           if (!element) return;
           let hideThisPost = false;
+          if (isFilteringCrossposts) {
+            hideThisPost = isCrosspost(element);
+          }
           const contentLink = md5hash(element.getAttribute("content-href")?.toLowerCase() || "");
           const author = md5hash(element.getAttribute("author")?.toLowerCase() || "");
           const subreddit = md5hash(element.getAttribute("subreddit-name")?.toLowerCase() || "");
@@ -338,8 +334,11 @@
           chrome.storage.local.set({ seenPostsID });
         }
       }
+      function isCrosspost(element) {
+        return element?.hasAttribute("post-type") && element.getAttribute("post-type")?.toLowerCase() === "crosspost";
+      }
       async function initialize() {
-        await removeOldEntires();
+        await removeOldEntries();
         filterPosts();
         let debounceTimer;
         const observer = new MutationObserver(() => {

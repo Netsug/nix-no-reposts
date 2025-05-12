@@ -17,67 +17,59 @@ let seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
 let seenPostsID: Record<string, SeenPostIDEntry> = {};
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1_000; // Two days in milliseconds (time we store each entry) TODO: This seems arbitrary. Any other suggestions for a set length?
 
+let isFilteringCrossposts: boolean = true;
+
 function md5hash(data: string): string {
-    //return CryptoJS.MD5(data).toString(CryptoJS.enc.Hex);
     return md5(data);
 }
 
-// Load seenPosts at every page load and remove expired entries
-
-async function removeOldEntries(): Promise<void[]> {
+async function removeOldEntries(): Promise<void> {
     const now = Date.now();
-    
-    const promise1 = new Promise<void>((resolve) => {
-        chrome.storage.local.get(["seenPostsSubreddit"], (result) => {
-            const stored = result.seenPostsSubreddit || {};
 
-            const newSeenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
-            const initialEntryCount = Object.keys(stored).length;
+    // Get the data from storage
+    const { seenPostsSubreddit = {}, seenPostsID = {} } = await new Promise<Record<string, any>>((resolve) =>
+        chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID"], resolve)
+    ) as { seenPostsSubreddit: Record<string, SeenPostSubredditEntry>, seenPostsID: Record<string, SeenPostIDEntry> };
 
-            // Remove expired entires
-            for (const [key, entry] of Object.entries(stored) as [string, SeenPostSubredditEntry][]) {
-                if (now - entry.timestamp < TWO_DAYS_MS) {
-                    newSeenPostsSubreddit[key] = entry;
-                    // console.log("Removing: " + key + " subreddit: " + entry.subreddit);
-                }
-            }
+    const newSeenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
+    const newSeenPostsID: Record<string, SeenPostIDEntry> = {};
 
-            // Update storage in case we pruned expired entries
-            if (Object.keys(newSeenPostsSubreddit).length != initialEntryCount) {
-                chrome.storage.local.set({ seenPostsSubreddit: newSeenPostsSubreddit }, resolve);
-            }
-            else {
-                resolve();
-            }
-        });
-    });
+    // Process subreddit entries
+    for (const [key, entry] of Object.entries(seenPostsSubreddit)) {
+        if (now - entry.timestamp < TWO_DAYS_MS) {
+            newSeenPostsSubreddit[key] = entry;
+        } else {
+            //console.log(`Removing expired subreddit entry: ${key}`);
+        }
+    }
 
-    const promise2 = new Promise<void>((resolve) => {
-        chrome.storage.local.get(["seenPostsID"], (result) => {
-            const stored = result.seenPostsID || {};
+    // Process postID entries
+    for (const [key, entry] of Object.entries(seenPostsID)) {
+        if (now - entry.timestamp < TWO_DAYS_MS) {
+            newSeenPostsID[key] = entry;
+        } else {
+            //console.log(`Removing expired postID entry: ${key}`);
+        }
+    }
 
-            const newSeenPostsID: Record<string, SeenPostIDEntry> = {};
-            const initialEntryCount = Object.keys(stored).length;
+    //console.log("Filtered seenPostsSubreddit:", newSeenPostsSubreddit);
+    //console.log("Filtered seenPostsID:", newSeenPostsID);
 
-            // Remove expired entires
-            for (const [key, entry] of Object.entries(stored) as [string, SeenPostIDEntry][]) {
-                if (now - entry.timestamp < TWO_DAYS_MS) {
-                    newSeenPostsID[key] = entry;
-                    console.log("Removing: " + key + " title: " + entry.postID);
-                }
-            }
+    const changesToSubreddit = Object.keys(newSeenPostsSubreddit).length !== Object.keys(seenPostsSubreddit).length;
+    const changesToID = Object.keys(newSeenPostsID).length !== Object.keys(seenPostsID).length;
 
-            // Update storage in case we pruned expired entries
-            if (Object.keys(newSeenPostsID).length != initialEntryCount) {
-                chrome.storage.local.set({ seenPostsID: newSeenPostsID }, resolve);
-            }
-            else {
-                resolve();
-            }
-        })
-    });
+    // Save back if there were changes
+    if (changesToSubreddit) {
+        await new Promise<void>((resolve) =>
+            chrome.storage.local.set({ seenPostsSubreddit: newSeenPostsSubreddit }, resolve)
+        );
+    }
 
-    return Promise.all([promise1, promise2]);
+    if (changesToID) {
+        await new Promise<void>((resolve) =>
+            chrome.storage.local.set({ seenPostsID: newSeenPostsID }, resolve)
+        );
+    }
 }
 
 // Perform filtering and update seenPosts in memory
@@ -93,6 +85,9 @@ function filterPosts() {
         if (!element) return;
 
         let hideThisPost: boolean = false;
+        if (isFilteringCrossposts){
+            hideThisPost = isCrosspost(element);
+        }
 
         // Anonymize the entries
         const contentLink = md5hash(element.getAttribute('content-href')?.toLowerCase() || "" );
@@ -155,6 +150,10 @@ function filterPosts() {
     if (hasUpdatesID) {
         chrome.storage.local.set({ seenPostsID: seenPostsID });
     }
+}
+
+function isCrosspost(element: Element): boolean {
+    return element?.hasAttribute('post-type') && element.getAttribute('post-type')?.toLowerCase() === 'crosspost';
 }
 
 async function initialize() {
