@@ -1,18 +1,23 @@
-// src/options.ts
-const keywordsInput = document.getElementById('keywords') as HTMLTextAreaElement | null;
-const saveButton = document.getElementById('save') as HTMLButtonElement | null;
+// options.ts - Handles the settings and their states
 
-if (keywordsInput && saveButton) {
-    // Load saved keywords from Chrome storage
-    chrome.storage.local.get({ blockedKeywords: "" }, (result) => {
-        keywordsInput.value = result.blockedKeywords;
-    });
+// Function to load the settings from storage
+function loadSettings() {
+    const debugMode = localStorage.getItem('debugMode') === 'true';
+    const crosspostFilter = localStorage.getItem('crosspostFilter') === 'true';
 
-    // Save keywords to Chrome storage
-    saveButton.addEventListener('click', () => {
-        const keywords = keywordsInput.value.split(',').map(k => k.trim()).filter(k => k !== "");
-        chrome.storage.local.set({ blockedKeywords: keywords }, () => {
-            alert('Keywords saved!');
-        });
-    });
+    // Set checkbox states based on stored values
+    (document.getElementById('debugModeCheckbox') as HTMLInputElement).checked = debugMode;
+    (document.getElementById('crosspostCheckbox') as HTMLInputElement).checked = crosspostFilter;
 }
+
+// Function to toggle settings and save to localStorage
+function toggleCheckbox(checkbox: HTMLInputElement) {
+    const settingName = checkbox.id;
+    const settingValue = checkbox.checked;
+
+    // Save the setting to localStorage
+    localStorage.setItem(settingName, settingValue.toString());
+}
+
+// Event listener for document load to initialize settings
+document.addEventListener('DOMContentLoaded', loadSettings);

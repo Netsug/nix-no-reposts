@@ -3,7 +3,13 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "build": "node build.js",
+    "build:ts": "tsc --outDir dist",
+    "build:css": "npx @tailwindcss/cli -i ./src/input.css -o ./public/output.css --watch",
+    "watch:ts": "tsc --outDir dist --watch",
+    "watch:css": "npx @tailwindcss/cli -i ./src/input.css -o ./public/output.css --watch",
+    "build": "npm run build:ts && npm run build:css",
+    "watch": "npm run watch:ts & npm run watch:css",
+    "package": "zip -r nix-reposts-settings.zip dist manifest.json options.html",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -12,10 +18,14 @@
   "type": "commonjs",
   "devDependencies": {
     "@types/chrome": "^0.0.320",
+    "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.4",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.6",
     "typescript": "5.8.3"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.6",
     "blueimp-md5": "^2.19.0",
     "ts": "file:"
   }

@@ -1,24 +1,19 @@
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __commonJS = (cb, mod) => function __require() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-};
-
-// src/options.ts
-var require_options = __commonJS({
-  "src/options.ts"() {
-    var keywordsInput = document.getElementById("keywords");
-    var saveButton = document.getElementById("save");
-    if (keywordsInput && saveButton) {
-      chrome.storage.local.get({ blockedKeywords: "" }, (result) => {
-        keywordsInput.value = result.blockedKeywords;
-      });
-      saveButton.addEventListener("click", () => {
-        const keywords = keywordsInput.value.split(",").map((k) => k.trim()).filter((k) => k !== "");
-        chrome.storage.local.set({ blockedKeywords: keywords }, () => {
-          alert("Keywords saved!");
-        });
-      });
-    }
-  }
-});
-export default require_options();
+"use strict";
+// options.ts - Handles the settings and their states
+// Function to load the settings from storage
+function loadSettings() {
+    const debugMode = localStorage.getItem('debugMode') === 'true';
+    const crosspostFilter = localStorage.getItem('crosspostFilter') === 'true';
+    // Set checkbox states based on stored values
+    document.getElementById('debugModeCheckbox').checked = debugMode;
+    document.getElementById('crosspostCheckbox').checked = crosspostFilter;
+}
+// Function to toggle settings and save to localStorage
+function toggleCheckbox(checkbox) {
+    const settingName = checkbox.id;
+    const settingValue = checkbox.checked;
+    // Save the setting to localStorage
+    localStorage.setItem(settingName, settingValue.toString());
+}
+// Event listener for document load to initialize settings
+document.addEventListener('DOMContentLoaded', loadSettings);
