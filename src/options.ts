@@ -11,28 +11,31 @@ function loadSettings() {
         'deleteThreshold',
         'hideCrossposts',
         'lessAggressivePruning',
-        'debugMode'
+        'debugMode',
+        'incognito'
     ], (settings) => {
         const rangeInput = document.getElementById('persistentStorage') as HTMLInputElement;
         const rangeLabel = document.getElementById('persistentStorageLabel')!;
         const crosspostCheckbox = document.getElementById('crosspostCheckbox') as HTMLInputElement;
         const pruneCheckbox = document.getElementById('pruneCheckbox') as HTMLInputElement;
         const debugCheckbox = document.getElementById('debugModeCheckbox') as HTMLInputElement;
+        const incognitoModeCheckbox = document.getElementById('incognitoModeCheckbox') as HTMLInputElement;
 
         // Load values or fallback to defaults
-        const threshold = settings.deleteThreshold ?? 1;
+        const threshold = settings.deleteThreshold ?? 2;
         rangeInput.value = threshold.toString();
         rangeLabel.textContent = formatThresholdLabel(threshold);
 
-        crosspostCheckbox.checked = settings.hideCrossposts ?? true;
+        crosspostCheckbox.checked = settings.hideCrossposts ?? false;
         pruneCheckbox.checked = settings.lessAggressivePruning ?? false;
         debugCheckbox.checked = settings.debugMode ?? false;
+        incognitoModeCheckbox.checked = settings.incognito ?? false;
     });
 }
 
-// Converts index 0-4 to readable label
+// Converts index 0-6 to readable label
 function formatThresholdLabel(value: number): string {
-    const labels = ['6 hours', '1 day', '2 days','1 week' , '2 weeks', 'Never'];
+    const labels = ['6 hours', '1 day', '2 days', '1 week' , '2 weeks', 'Never'];
     return labels[value] ?? 'Unknown';
 }
 
@@ -41,13 +44,15 @@ function setupEventHandlers() {
     const rangeInput = document.getElementById('persistentStorage') as HTMLInputElement;
     const rangeLabel = document.getElementById('persistentStorageLabel')!;
     const crosspostCheckbox = document.getElementById('crosspostCheckbox') as HTMLInputElement;
+    const incognitoModeCheckbox = document.getElementById('incognitoModeCheckbox') as HTMLInputElement;
+
     const pruneCheckbox = document.getElementById('pruneCheckbox') as HTMLInputElement;
     const debugCheckbox = document.getElementById('debugModeCheckbox') as HTMLInputElement;
 
     const resetButton = document.getElementById('resetButton')!;
     const deleteStorageButton = document.getElementById('deleteStorage')!;
-    const trackedEntries = document.getElementById('trackedEntries')!;
-    const storageSize = document.getElementById('storageSize')!;
+    //const trackedEntries = document.getElementById('trackedEntries')!;
+    //const storageSize = document.getElementById('storageSize')!;
 
     // Range input
     rangeInput.addEventListener('input', () => {
@@ -60,6 +65,10 @@ function setupEventHandlers() {
     crosspostCheckbox.addEventListener('change', () => {
         saveSetting('hideCrossposts', crosspostCheckbox.checked);
     });
+
+    incognitoModeCheckbox.addEventListener('change', () => {
+        saveSetting('incognito', incognitoModeCheckbox.checked);
+    })
 
     pruneCheckbox.addEventListener('change', () => {
         saveSetting('lessAggressivePruning', pruneCheckbox.checked);
@@ -93,9 +102,9 @@ function updateStats() {
     const storageSize = document.getElementById('storageSize')!;
 
     chrome.storage.local.get(['seenPostsSubreddit', 'seenPostsID'], (data) => {
-        //const countSub = Object.keys(data.seenPostsSubreddit || {}).length;
+        const countSub = Object.keys(data.seenPostsSubreddit || {}).length;
         const countID = Object.keys(data.seenPostsID || {}).length;
-        const total = countID;
+        const total = countID + countSub;
         trackedEntries.textContent = total.toString();
 
         // Roughly estimate size

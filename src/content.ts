@@ -13,14 +13,33 @@ type SeenPostIDEntry = {
 let seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
 let seenPostsID: Record<string, SeenPostIDEntry> = {};
 
-const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1_000; // Two days in milliseconds (time we store each entry) TODO: This seems arbitrary. Any other suggestions for a set length?
-
+let deleteThreshold: number = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
 let isFilteringCrossposts: boolean = true;
 let isDebugging: boolean = true;
+let lessAggressivePruning: boolean = false;
+let incognitoExclusiveMode: boolean = false;
 
 function md5hash(data: string): string {
     return md5(data);
 }
+
+async function loadSettings(): Promise<void> {
+    const settings = await new Promise<any>((resolve) =>
+        chrome.storage.local.get(['deleteThreshold', 'isFilteringCrossposts', 'isDebugging', 'lessAggressivePruning', 'incognito'], resolve)
+    );
+
+    // Use default values if the setting is not available
+    deleteThreshold = settings.deleteThreshold ?? deleteThreshold;
+    isFilteringCrossposts = settings.isFilteringCrossposts ?? isFilteringCrossposts;
+    isDebugging = settings.isDebugging ?? isDebugging;
+    lessAggressivePruning = settings.lessAggressivePruning ?? lessAggressivePruning;
+    incognitoExclusiveMode = settings.incognito ?? incognitoExclusiveMode;
+
+    if (isDebugging) {
+        console.log("Settings loaded: ", settings);
+    }
+}
+
 
 async function removeOldEntries(): Promise<void> {
     const now = Date.now();
@@ -35,7 +54,7 @@ async function removeOldEntries(): Promise<void> {
 
     // Process subreddit entries
     for (const [key, entry] of Object.entries(seenPostsSubreddit)) {
-        if (now - entry.timestamp < TWO_DAYS_MS) {
+        if (now - entry.timestamp < deleteThreshold) {
             newSeenPostsSubreddit[key] = entry;
         } else {
             if (isDebugging) {
@@ -46,7 +65,7 @@ async function removeOldEntries(): Promise<void> {
 
     // Process postID entries
     for (const [key, entry] of Object.entries(seenPostsID)) {
-        if (now - entry.timestamp < TWO_DAYS_MS) {
+        if (now - entry.timestamp < deleteThreshold) {
             newSeenPostsID[key] = entry;
         } else {
             if (isDebugging) {
@@ -112,10 +131,10 @@ function filterPosts() {
         }
 
         let key;
-        if(isDebugging){
-            key =`${contentLink}|${author}`;
+        if (isDebugging) {
+            key = `${contentLink}|${author}`;
         }
-        else{
+        else {
             key = md5hash(`${contentLink}|${author}`);
         }
 
@@ -153,22 +172,26 @@ function filterPosts() {
             key = md5hash(`${title}|${author}`);
         }
 
-        const storedTitleEntry = seenPostsID[key];
+        if (!hideThisPost) { // Avoid storing the same post twice - save memory
+            if (!lessAggressivePruning) { // lessAggressivePruning == true -> don't remove posts based on author + title combo 
 
-        if (storedTitleEntry) {
-            if (storedTitleEntry.postID != postID) {
-                hideThisPost = true;
-                if (isDebugging) {
-                    console.log(`Filtered duplicate with similar title: ${title}`);
+                const storedTitleEntry = seenPostsID[key];
+                if (storedTitleEntry) {
+                    if (storedTitleEntry.postID != postID) {
+                        hideThisPost = true;
+                        if (isDebugging) {
+                            console.log(`Filtered duplicate with similar title: ${title}`);
+                        }
+                    }
+                }
+                else {
+                    seenPostsID[key] = {
+                        postID: postID,
+                        timestamp: now
+                    }
+                    hasUpdatesID = true;
                 }
             }
-        }
-        else {
-            seenPostsID[key] = {
-                postID: postID,
-                timestamp: now
-            }
-            hasUpdatesID = true;
         }
 
         if (hideThisPost) {
@@ -190,6 +213,28 @@ function isCrosspost(element: Element): boolean {
 }
 
 async function initialize() {
+    await loadSettings();
+
+    let isIncognitoWindow;
+
+    if (chrome.windows && await chrome.windows.getCurrent()) {
+        isIncognitoWindow = await new Promise<boolean>((resolve) => {
+            chrome.runtime.sendMessage({ type: 'getIncognitoStatus' }, (response) => {
+                resolve(response?.isIncognito ?? false);
+            });
+        });
+    }
+    else {
+        //console.log("Chrome.Windows API not supported");
+    }
+
+    if (incognitoExclusiveMode && !isIncognitoWindow) {
+        if (isDebugging) {
+            console.log("Incognito Exclusive Mode is enabled, but this window is not incognito. Exiting...");
+        }
+        return; // Exit if it's not an incognito window and exclusive mode is enabled
+    }
+
     await removeOldEntries();
     filterPosts();
 
