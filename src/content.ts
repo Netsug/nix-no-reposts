@@ -174,7 +174,7 @@ function filterPosts() {
 
         const storedSubredditEntry = seenPostsSubreddit[key];
 
-        // If the entry exists...
+        // If the entry exists... (if we have seen this author + content-link before)
         if (storedSubredditEntry) {
             // and the entry's subreddit is not equal to this <article> subreddit
             if (storedSubredditEntry.subreddit !== subreddit) {
