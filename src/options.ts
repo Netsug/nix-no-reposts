@@ -1,7 +1,7 @@
 // options.ts
 
 // Utility function to save setting
-function saveSetting(key: string, value: any) {
+function saveSetting(key: string, value: number | boolean) {
     chrome.storage.local.set({ [key]: value });
 }
 

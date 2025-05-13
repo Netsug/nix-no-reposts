@@ -10,14 +10,21 @@ type SeenPostIDEntry = {
     timestamp: number; // Unix epoch in milliseconds
 };
 
-let seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
-let seenPostsID: Record<string, SeenPostIDEntry> = {};
+type ExtensionSettings = {
+    deleteThreshold?: number;
+    hideCrossposts?: boolean;
+    debugMode?: boolean;
+    lessAggressivePruning?: boolean;
+    incognito?: boolean;
+};
 
-const thresholdLabels = ['6 hours', '1 day', '2 days', '1 week', '2 weeks', 'Never'];
+type StorageData = {
+    seenPostsSubreddit: Record<string, SeenPostSubredditEntry>;
+    seenPostsID: Record<string, SeenPostIDEntry>;
+};
 
-function formatThresholdLabel(val: number): string {
-    return thresholdLabels[val] ?? 'Unknown';
-}
+const seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
+const seenPostsID: Record<string, SeenPostIDEntry> = {};
 
 function getThresholdMilliseconds(val: number): number | null {
     const msValues = [
@@ -42,9 +49,7 @@ function md5hash(data: string): string {
 }
 
 async function loadSettings(): Promise<void> {
-    const settings = await new Promise<any>((resolve) =>
-        chrome.storage.local.get(['deleteThreshold', 'hideCrossposts', 'debugMode', 'lessAggressivePruning', 'incognito'], resolve)
-    );
+    const settings = await getSettings();
 
     // Use default values if the setting is not available
     deleteThreshold = settings.deleteThreshold ?? deleteThreshold;
@@ -79,19 +84,30 @@ async function loadSettings(): Promise<void> {
     }
 }
 
+function getSettings(): Promise<ExtensionSettings> {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(
+            ['deleteThreshold', 'hideCrossposts', 'debugMode', 'lessAggressivePruning', 'incognito'],
+            (result) => resolve(result as ExtensionSettings)
+        );
+    });
+}
 
 async function removeOldEntries(): Promise<void> {
     const now = Date.now();
 
-    // Delete after "Never" is selected 
-    if (deleteThreshold === null){
+    // "Never" is selected 
+    if (deleteThreshold === null) {
         return;
     }
 
     // Get the data from storage
-    const { seenPostsSubreddit = {}, seenPostsID = {} } = await new Promise<Record<string, any>>((resolve) =>
-        chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID"], resolve)
-    ) as { seenPostsSubreddit: Record<string, SeenPostSubredditEntry>, seenPostsID: Record<string, SeenPostIDEntry> };
+    const {
+        seenPostsSubreddit = {},
+        seenPostsID = {},
+    } = await new Promise<Partial<StorageData>>((resolve) =>
+        chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID"],
+            (result) => resolve(result as StorageData)));
 
     const newSeenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
     const newSeenPostsID: Record<string, SeenPostIDEntry> = {};
