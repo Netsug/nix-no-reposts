@@ -1,6 +1,7 @@
 # Nix, No Reposts!
 
-Are you tired of seeing the same content across multiple subreddits? Are you tired or seeing users reposting the same content again and again? This browser extension automatically filters duplicate posts and crossposts from your Reddit feed, creating a cleaner browsing experience.
+Tired of seeing the same posts over and over on Reddit?
+This browser extension automatically filters out duplicate posts and crossposts across subreddits, giving you a cleaner, more streamlined browsing experience.
 
 ## Overview
 
