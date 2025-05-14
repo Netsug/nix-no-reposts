@@ -100,7 +100,7 @@
 
             <div class="space-y-2 text-lg">
                 <p>
-                    <span class="font-medium text-gray-300">Tracked posts:</span>
+                    <span class="font-medium text-gray-300">Stored posts:</span>
                     <span id="trackedEntries" class="text-white">Loading...</span>
                 </p>
                 <p>
@@ -111,18 +111,36 @@
 
             <button id="deleteStorage"
                 class="w-full mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl transition text-xl">
-                Delete tracked posts
+                Delete stored posts
             </button>
         </div>
 
+        <!-- View Stored Posts Section -->
+        <div class="w-full max-w-5xl mx-auto p-6 rounded-2xl bg-gray-800 shadow-xl">
+            <h2 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">Information About Stored Posts</h2>
 
+            <button id="viewStoredPostsButton"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl transition">
+                View Stored Posts
+            </button>
+
+            <div id="storedPostsDropdown" class="hidden mt-4">
+                <ul id="storedPostsList" class="space-y-2 text-white text-sm">
+                    <!-- Stored posts will be dynamically populated here -->
+                </ul>
+            </div>
+        </div>
     </div>
 
-<!-- Modal for Incognito Mode Confirmation -->
-<div id="incognitoWarningModal" class="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 hidden">
-    <div class="bg-gray-800 text-white rounded-lg shadow-lg w-120 p-6">
-        <h2 class="text-2xl font-semibold text-center mb-4">Enabling Incognito Mode</h2>
-        <p class="text-lg mb-4">This extension will only be active in Incognito Mode if it is also enabled in Chrome settings.</p>
+
+
+    <!-- Modal for Incognito Mode Confirmation -->
+    <div id="incognitoWarningModal"
+        class="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 hidden">
+        <div class="bg-gray-800 text-white rounded-lg shadow-lg w-120 p-6">
+            <h2 class="text-2xl font-semibold text-center mb-4">Enabling Incognito Mode</h2>
+            <p class="text-lg mb-4">This extension will only be active in Incognito Mode if it is also enabled in Chrome
+                settings.</p>
             <p>Make sure you've manually enabled the extension for incognito access in your browser's settings.</p>
             <p>To enable this extension in Incognito Mode, follow these steps:</p>
             <br>
@@ -133,35 +151,40 @@
                 <li>Scroll down to 'Allow in Incognito' and toggle it on.</li>
             </ol>
             <br>
-            <p>Do you wish to proceed?</p>
-        <div class="flex justify-between">
-            <button id="cancelButton"
-                class="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500">Cancel</button>
-            <button id="proceedButton"
-                class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Proceed</button>
+            <div class="text-center">
+                <p>Do you wish to proceed?</p>
+            </div>
+            <div class="flex justify-between">
+                <button id="cancelButton"
+                    class="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500">Cancel</button>
+                <button id="proceedButton"
+                    class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Proceed</button>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Modal for Debug Mode Confirmation -->
-<div id="debugModeWarningModal" class="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 hidden">
-    <div class="bg-gray-800 text-white rounded-lg shadow-lg w-120 p-6">
-        <h2 class="text-2xl font-semibold text-center mb-4">Enabling Debug Mode</h2>
-        <p class="text-lg mb-4">WARNING: Debug Mode is intended for development and troubleshooting only.</p>
-        <ul class="list-disc list-inside mb-4">
-            <li>This may store & log sensitive information.</li>
-            <li>This may generate a large amount of log output and impact performance.</li>
-            <li>Only enable this for debugging purposes and on trusted devices.</li>
-        </ul>
-        <p>Are you sure you want to enable Debug Mode?</p>
-        <div class="flex justify-between">
-            <button id="debugCancelButton"
-                class="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500">Cancel</button>
-            <button id="debugProceedButton"
-                class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Proceed</button>
+    <!-- Modal for Debug Mode Confirmation -->
+    <div id="debugModeWarningModal"
+        class="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 hidden">
+        <div class="bg-gray-800 text-white rounded-lg shadow-lg w-120 p-6">
+            <h2 class="text-2xl font-semibold text-center mb-4">Enabling Debug Mode</h2>
+            <p class="text-lg mb-4">WARNING: Debug Mode is intended for development and troubleshooting only.</p>
+            <ul class="list-disc list-inside mb-4">
+                <li>This may store & log sensitive information.</li>
+                <li>This may generate a large amount of log output and impact performance.</li>
+                <li>Only enable this for debugging purposes and on trusted devices.</li>
+            </ul>
+            <div class="text-center">
+                <p>Are you sure you want to enable Debug Mode?</p>
+            </div>
+            <div class="flex justify-between">
+                <button id="debugCancelButton"
+                    class="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500">Cancel</button>
+                <button id="debugProceedButton"
+                    class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Proceed</button>
+            </div>
         </div>
     </div>
-</div>
 
     <script type="module" src="../dist/options.js"></script>
 </body>

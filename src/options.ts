@@ -1,5 +1,15 @@
 // options.ts
 
+type SeenPostSubredditEntry = {
+    subreddit: string;
+    timestamp: number; // Unix epoch in milliseconds
+};
+
+type SeenPostIDEntry = {
+    postID: string;
+    timestamp: number; // Unix epoch in milliseconds
+};
+
 // Utility function to save setting
 function saveSetting(key: string, value: number | boolean) {
     chrome.storage.local.set({ [key]: value });
@@ -134,10 +144,56 @@ function setupEventHandlers() {
             updateStats();
         });
     });
+    
+    setupStoredPostsButton();
 
     // Initial stats update
     updateStats();
 }
+
+function setupStoredPostsButton() {
+    const viewStoredPostsButton = document.getElementById('viewStoredPostsButton')! as HTMLButtonElement;
+
+    viewStoredPostsButton.addEventListener('click', () => {
+        displayStoredPosts(); // Show or hide the stored posts dropdown
+    });
+}
+
+    function displayStoredPosts() {
+        const storedPostsList = document.getElementById('storedPostsList')! as HTMLUListElement;
+        const dropdown = document.getElementById('storedPostsDropdown')!;
+
+        chrome.storage.local.get(['seenPostsSubreddit', 'seenPostsID'], (data) => {
+            const postsSubreddit = data.seenPostsSubreddit || {};
+            const postsID = data.seenPostsID || {};
+
+            // Combine posts into a single list
+            const allPosts = [
+                ...Object.keys(postsSubreddit).map(key => {
+                    const post: SeenPostSubredditEntry = postsSubreddit[key];
+                    const timestamp = post.timestamp;
+                    return `md5hash(title|author): ${key} - md5hash(subreddit): ${post.subreddit} - Timestamp: ${timestamp}`;
+                }),
+                ...Object.keys(postsID).map(key => {
+                    const post: SeenPostIDEntry = postsID[key];
+                    const timestamp = post.timestamp;
+                    const postID = post.postID;
+                    return `md5hash(content-href|author): ${key} - md5hash(postID): ${postID}  Seen at: ${timestamp}`;
+                })
+            ];
+
+            // Clear previous posts and populate new list
+            storedPostsList.innerHTML = '';
+            allPosts.forEach(post => {
+                const listItem = document.createElement('li');
+                listItem.textContent = post;
+                storedPostsList.appendChild(listItem);
+            });
+
+            // Toggle the dropdown visibility
+            dropdown.classList.toggle('hidden');
+        });
+    }
 
 // Calculate tracked entries and estimate size
 function updateStats() {
