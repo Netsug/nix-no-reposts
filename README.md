@@ -1,3 +1,8 @@
+
+<p align="center">
+<img src=images/icon-128.png alt="icon">
+</p>
+
 # Nix, No Reposts!
 
 Tired of seeing the same posts over and over on Reddit?
