@@ -1,6 +1,6 @@
 
 <p align="center">
-<img src=images/icon-128.png alt="icon">
+    <img src=images/icon-256.png alt="icon" width=200/>
 </p>
 
 # Nix, No Reposts!

@@ -1,11 +1,6 @@
 <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
     <!-- Definitions for filters -->
     <defs>
-        <!-- Drop shadow filter -->
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="4" dy="4" stdDeviation="2" flood-opacity="0.4" />
-        </filter>
-
         <!-- Gradient for background inside circle (30-degree angle) -->
         <linearGradient id="backgroundGradient" x1="0%" y1="0%" x2="60%" y2="100%">
             <stop offset="0%" stop-color="#0a3aaa" stop-opacity="1" />
