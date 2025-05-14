@@ -23,8 +23,8 @@ type StorageData = {
     seenPostsID: Record<string, SeenPostIDEntry>;
 };
 
-const seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
-const seenPostsID: Record<string, SeenPostIDEntry> = {};
+let seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
+let seenPostsID: Record<string, SeenPostIDEntry> = {};
 
 function getThresholdMilliseconds(val: number): number | null {
     const msValues = [
@@ -38,7 +38,7 @@ function getThresholdMilliseconds(val: number): number | null {
     return msValues[val] ?? null;
 }
 
-let deleteThreshold: number | null = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
+let deleteThresholdDuration: number | null = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
 let isFilteringCrossposts: boolean = false;
 let isDebugging: boolean = false;
 let lessAggressivePruning: boolean = false;
@@ -52,32 +52,13 @@ async function loadSettings(): Promise<void> {
     const settings = await getSettings();
 
     // Use default values if the setting is not available
-    deleteThreshold = settings.deleteThreshold ?? deleteThreshold;
+    const thresholdSetting = settings.deleteThreshold ?? 2;
     isFilteringCrossposts = settings.hideCrossposts ?? isFilteringCrossposts;
     isDebugging = settings.debugMode ?? isDebugging;
     lessAggressivePruning = settings.lessAggressivePruning ?? lessAggressivePruning;
     incognitoExclusiveMode = settings.incognito ?? incognitoExclusiveMode;
 
-    // Check if deleteThreshold is null first
-    let thresholdMs: number | null = null;
-    if (deleteThreshold !== null) {
-        thresholdMs = getThresholdMilliseconds(deleteThreshold);
-    }
-
-    if (thresholdMs !== null) {
-        const cutoffTime = Date.now() - thresholdMs;
-        deleteThreshold = cutoffTime;
-
-        if (isDebugging) {
-            console.log(`Cutoff time is ${new Date(cutoffTime).toISOString()}`);
-        }
-    } else {
-        // "Never" case — do not delete anything
-        deleteThreshold = null;
-        if (isDebugging) {
-            console.log("Delete threshold is set to 'Never'; no deletions will occur.");
-        }
-    }
+    deleteThresholdDuration = getThresholdMilliseconds(thresholdSetting);
 
     if (isDebugging) {
         console.log("Settings loaded: ", settings);
@@ -97,57 +78,51 @@ async function removeOldEntries(): Promise<void> {
     const now = Date.now();
 
     // "Never" is selected
-    if (deleteThreshold === null) {
+    if (deleteThresholdDuration === null) {
         return;
     }
 
-    // Get the data from storage
-    const {
-        seenPostsSubreddit = {},
-        seenPostsID = {},
-    } = await new Promise<Partial<StorageData>>((resolve) =>
-        chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID"],
-            (result) => resolve(result as StorageData)));
+    // Calculate the cutoff time based on the current time and threshold duration
+    const cutoffTime = now - deleteThresholdDuration;
 
-    const newSeenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
-    const newSeenPostsID: Record<string, SeenPostIDEntry> = {};
+    if (isDebugging) {
+        console.log(`Cutoff time is ${new Date(cutoffTime).toISOString()}`);
+    }
+
+    let entriesRemoved = 0;
 
     // Process subreddit entries
     for (const [key, entry] of Object.entries(seenPostsSubreddit)) {
-        if (now - entry.timestamp > deleteThreshold) {
+        if (entry.timestamp < cutoffTime) {
             if (isDebugging) {
                 console.log(`Removing expired subreddit entry: ${key}`);
             }
-        } else {
-            newSeenPostsSubreddit[key] = entry; // Keep valid entries
+            delete seenPostsSubreddit[key];
+            entriesRemoved++;
         }
     }
 
     // Process postID entries
     for (const [key, entry] of Object.entries(seenPostsID)) {
-        if (now - entry.timestamp > deleteThreshold) {
+        if (entry.timestamp < cutoffTime) {
             if (isDebugging) {
                 console.log(`Removing expired postID entry: ${key}`);
             }
-        } else {
-            newSeenPostsID[key] = entry; // Keep valid entries
+            delete seenPostsID[key];
+            entriesRemoved++;
         }
     }
 
-    const changesToSubreddit = Object.keys(newSeenPostsSubreddit).length !== Object.keys(seenPostsSubreddit).length;
-    const changesToID = Object.keys(newSeenPostsID).length !== Object.keys(seenPostsID).length;
+    if (entriesRemoved > 0) {
+        // Save the pruned objects back to storage
+        await Promise.all([
+            new Promise<void>((resolve) => chrome.storage.local.set({ seenPostsSubreddit }, resolve)),
+            new Promise<void>((resolve) => chrome.storage.local.set({ seenPostsID }, resolve))
+        ]);
 
-    // Save back if there were changes
-    if (changesToSubreddit) {
-        await new Promise<void>((resolve) =>
-            chrome.storage.local.set({ seenPostsSubreddit: newSeenPostsSubreddit }, resolve)
-        );
-    }
-
-    if (changesToID) {
-        await new Promise<void>((resolve) =>
-            chrome.storage.local.set({ seenPostsID: newSeenPostsID }, resolve)
-        );
+        if (isDebugging) {
+            console.log(`Removed ${entriesRemoved} expired entries`);
+        }
     }
 }
 
@@ -264,6 +239,7 @@ function isCrosspost(element: Element): boolean {
 
 async function initialize() {
     await loadSettings();
+    await loadStorageData();
 
     let isIncognitoWindow;
 
@@ -299,6 +275,24 @@ async function initialize() {
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
+}
+
+async function loadStorageData(): Promise<void> {
+    // Get all data from storage
+    const {
+        seenPostsSubreddit: storedSubredditPosts = {},
+        seenPostsID: storedIDPosts = {},
+    } = await new Promise<Partial<StorageData>>((resolve) =>
+        chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID"],
+            (result) => resolve(result as StorageData)));
+
+    // Update our in-memory objects with all data from storage
+    seenPostsSubreddit = storedSubredditPosts;
+    seenPostsID = storedIDPosts;
+
+    if (isDebugging) {
+        console.log(`Loaded ${Object.keys(seenPostsSubreddit).length} subreddit entries and ${Object.keys(seenPostsID).length} post ID entries from storage`);
+    }
 }
 
 initialize();
