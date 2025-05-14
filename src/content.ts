@@ -1,4 +1,4 @@
-import md5 from 'blueimp-md5';
+import md5 from 'blueimp-md5'; // TODO: Switch to BLAKE3 / SHA-1. Something fast and secure.
 
 type SeenPostSubredditEntry = {
     subreddit: string;
@@ -140,83 +140,12 @@ function filterPosts() {
         if (!element) return;
 
         let hideThisPost: boolean = false;
-        if (isFilteringCrossposts) {
-            hideThisPost = isCrosspost(element);
+        
+        hideThisPost = filterByCrosspost(hideThisPost, element);
 
-            if (isDebugging) {
-                if (hideThisPost) {
-                    console.log("Filtered post based on crosspost");
-                }
-            }
-        }
-
-        const contentLinkRaw = element.getAttribute('content-href')?.toLowerCase() || "";
-        const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
-        const subredditRaw = element.getAttribute('subreddit-name')?.toLowerCase() || "";
-
-        const contentLink = md5hash(contentLinkRaw);
-        const author = md5hash(authorRaw);
-        const subreddit = md5hash(subredditRaw);
-
-        const key = md5hash(`${contentLink}|${author}`);
-
-        if (isDebugging) {
-            console.log(`Key (content|author): ${key}, Subreddit: ${subredditRaw}`);
-        }
-
-        const storedSubredditEntry = seenPostsSubreddit[key];
-
-        // If the entry exists... (if we have seen this author + content-link before)
-        if (storedSubredditEntry) {
-            // and the entry's subreddit is not equal to this <article> subreddit
-            if (storedSubredditEntry.subreddit !== subreddit) {
-                // Hide it
-                hideThisPost = true;
-                if (isDebugging) {
-                    console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
-                }
-            }
-        } else {
-            // First time seeing this content+author combo. Add it to the storage.
-            seenPostsSubreddit[key] = {
-                subreddit: subreddit,
-                timestamp: now
-            }
-            hasUpdatesSubreddit = true;
-        }
-
-        // Always use raw values initially for consistent hashing and debug logging
-        const titleRaw = element.getAttribute('post-title') || "";
-        const postIDRaw = element.getAttribute('id') || "";
-
-        // Hash for consistent storage
-        const title = md5hash(titleRaw);
-        const postID = md5hash(postIDRaw);
-        const postKey = md5hash(`${title}|${author}`); // 'author' is already hashed above
-
-        if (isDebugging) {
-            console.log(`Post Key (title|author): ${titleRaw}|${author}`);
-        }
-
-        if (!hideThisPost) {
-            if (!lessAggressivePruning) {
-                const storedTitleEntry = seenPostsID[postKey];
-                if (storedTitleEntry) {
-                    if (storedTitleEntry.postID !== postID) {
-                        hideThisPost = true;
-                        if (isDebugging) {
-                            console.log(`Filtered duplicate with similar title: ${titleRaw}`);
-                        }
-                    }
-                } else {
-                    seenPostsID[postKey] = {
-                        postID: postID,
-                        timestamp: now
-                    };
-                    hasUpdatesID = true;
-                }
-            }
-        }
+        let author;
+        ({ author, hideThisPost, hasUpdatesSubreddit } = filterPostBySubreddit(element, hideThisPost, now, hasUpdatesSubreddit));
+        ({ hideThisPost, hasUpdatesID } = filterPostByID(element, author, hideThisPost, now, hasUpdatesID));
 
 
         if (hideThisPost) {
@@ -231,6 +160,92 @@ function filterPosts() {
     if (hasUpdatesID) {
         chrome.storage.local.set({ seenPostsID: seenPostsID });
     }
+}
+
+function filterByCrosspost(hideThisPost: boolean, element: Element) {
+    if (isFilteringCrossposts) {
+        hideThisPost = isCrosspost(element);
+
+        if (isDebugging) {
+            if (hideThisPost) {
+                console.log("Filtered post based on crosspost");
+            }
+        }
+    }
+    return hideThisPost;
+}
+
+function filterPostByID(element: Element, author: string, hideThisPost: boolean, now: number, hasUpdatesID: boolean) {
+    const titleRaw = element.getAttribute('post-title') || "";
+    const postIDRaw = element.getAttribute('id') || "";
+
+    // Hash for consistent storage
+    const title = md5hash(titleRaw);
+    const postID = md5hash(postIDRaw);
+    const postKey = md5hash(`${title}|${author}`); // 'author' is already hashed above
+
+    if (isDebugging) {
+        console.log(`Post Key (title|author): ${titleRaw}|${author}`);
+    }
+
+    if (!hideThisPost) {
+        if (!lessAggressivePruning) {
+            const storedTitleEntry = seenPostsID[postKey];
+            if (storedTitleEntry) {
+                if (storedTitleEntry.postID !== postID) {
+                    hideThisPost = true;
+                    if (isDebugging) {
+                        console.log(`Filtered duplicate with similar title: ${titleRaw}`);
+                    }
+                }
+            } else {
+                seenPostsID[postKey] = {
+                    postID: postID,
+                    timestamp: now
+                };
+                hasUpdatesID = true;
+            }
+        }
+    }
+    return { hideThisPost, hasUpdatesID };
+}
+
+function filterPostBySubreddit(element: Element, hideThisPost: boolean, now: number, hasUpdatesSubreddit: boolean) {
+    const contentLinkRaw = element.getAttribute('content-href')?.toLowerCase() || "";
+    const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
+    const subredditRaw = element.getAttribute('subreddit-name')?.toLowerCase() || "";
+
+    const contentLink = md5hash(contentLinkRaw);
+    const author = md5hash(authorRaw);
+    const subreddit = md5hash(subredditRaw);
+
+    const key = md5hash(`${contentLink}|${author}`);
+
+    if (isDebugging) {
+        console.log(`Key (content|author): ${key}, Subreddit: ${subredditRaw}`);
+    }
+
+    const storedSubredditEntry = seenPostsSubreddit[key];
+
+    // If the entry exists... (if we have seen this author + content-link before)
+    if (storedSubredditEntry) {
+        // and the entry's subreddit is not equal to this <article> subreddit
+        if (storedSubredditEntry.subreddit !== subreddit) {
+            // Hide it
+            hideThisPost = true;
+            if (isDebugging) {
+                console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
+            }
+        }
+    } else {
+        // First time seeing this content+author combo. Add it to the storage.
+        seenPostsSubreddit[key] = {
+            subreddit: subreddit,
+            timestamp: now
+        };
+        hasUpdatesSubreddit = true;
+    }
+    return { author, hideThisPost, hasUpdatesSubreddit };
 }
 
 function isCrosspost(element: Element): boolean {
