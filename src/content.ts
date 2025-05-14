@@ -114,7 +114,7 @@ async function removeOldEntries(): Promise<void> {
 
     // Process subreddit entries
     for (const [key, entry] of Object.entries(seenPostsSubreddit)) {
-        if (now - entry.timestamp < deleteThreshold) {
+        if (now - entry.timestamp > deleteThreshold) {
             newSeenPostsSubreddit[key] = entry;
         } else {
             if (isDebugging) {
@@ -125,7 +125,7 @@ async function removeOldEntries(): Promise<void> {
 
     // Process postID entries
     for (const [key, entry] of Object.entries(seenPostsID)) {
-        if (now - entry.timestamp < deleteThreshold) {
+        if (now - entry.timestamp > deleteThreshold) {
             newSeenPostsID[key] = entry;
         } else {
             if (isDebugging) {
