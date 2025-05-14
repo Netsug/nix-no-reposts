@@ -96,7 +96,7 @@ function getSettings(): Promise<ExtensionSettings> {
 async function removeOldEntries(): Promise<void> {
     const now = Date.now();
 
-    // "Never" is selected 
+    // "Never" is selected
     if (deleteThreshold === null) {
         return;
     }
@@ -115,22 +115,22 @@ async function removeOldEntries(): Promise<void> {
     // Process subreddit entries
     for (const [key, entry] of Object.entries(seenPostsSubreddit)) {
         if (now - entry.timestamp > deleteThreshold) {
-            newSeenPostsSubreddit[key] = entry;
-        } else {
             if (isDebugging) {
                 console.log(`Removing expired subreddit entry: ${key}`);
             }
+        } else {
+            newSeenPostsSubreddit[key] = entry; // Keep valid entries
         }
     }
 
     // Process postID entries
     for (const [key, entry] of Object.entries(seenPostsID)) {
         if (now - entry.timestamp > deleteThreshold) {
-            newSeenPostsID[key] = entry;
-        } else {
             if (isDebugging) {
                 console.log(`Removing expired postID entry: ${key}`);
             }
+        } else {
+            newSeenPostsID[key] = entry; // Keep valid entries
         }
     }
 
@@ -150,6 +150,7 @@ async function removeOldEntries(): Promise<void> {
         );
     }
 }
+
 
 // Perform filtering and update seenPosts in memory
 function filterPosts() {
