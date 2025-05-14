@@ -58,7 +58,7 @@ This extension:
 
 - Works entirely in your browser
 - Does not send any data to external servers
-- Uses MD5 hashing to avoid storing plain-text post information. Only timestamps are stored not hashed.
+- Uses MD5 hashing to avoid storing plain-text post information. Only timestamps (and user settings) are stored not hashed.
 - Automatically cleans up old data based on your settings
 
 ## Development
