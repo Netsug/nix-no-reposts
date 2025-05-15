@@ -146,7 +146,7 @@ async function filterPosts() {
         if (!element) return;
 
         let hideThisPost: boolean = false;
-        
+
         hideThisPost = filterPostByCrosspost(hideThisPost, element);
 
         let author;
@@ -156,7 +156,7 @@ async function filterPosts() {
 
         hideThisPost = mediaResult.hideThisPost;
 
-        if(mediaResult.hasUpdatesMedia){
+        if (mediaResult.hasUpdatesMedia) {
             hasUpdatesMedia = true;
         }
 
@@ -172,7 +172,7 @@ async function filterPosts() {
     if (hasUpdatesID) {
         chrome.storage.local.set({ seenPostsID: seenPostsID });
     }
-    if(hasUpdatesMedia){
+    if (hasUpdatesMedia) {
         chrome.storage.local.set({ seenMedia: seenMedia });
     }
 }
@@ -299,15 +299,17 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
                         }
 
                         const storedMediaEntry = seenMedia[mediaHash];
+                        const postIDRaw = post.getAttribute('id') || "";
+                        const postID = md5hash(postIDRaw);
 
                         if (storedMediaEntry) {
-                            hideThisPost = true;
-                            if (isDebugging) {
-                                console.log(`Filtered duplicate based on media content hash: ${mediaHash}`);
+                            if (storedMediaEntry.postID != postID) {
+                                hideThisPost = true;
+                                if (isDebugging) {
+                                    console.log(`Filtered duplicate based on media content hash: ${mediaHash}`);
+                                }
                             }
                         } else {
-                            const postIDRaw = post.getAttribute('id') || "";
-                            const postID = md5hash(postIDRaw);
                             const now = Date.now();
 
                             seenMedia[mediaHash] = {
