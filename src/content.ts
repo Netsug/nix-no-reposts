@@ -119,6 +119,17 @@ async function removeOldEntries(): Promise<void> {
         }
     }
 
+    // Process Media entries
+    for (const [key, entry] of Object.entries(seenMedia)) {
+        if (entry.timestamp < cutoffTime) {
+            if (isDebugging) {
+                console.log(`Removing expired postID entry: ${key}`);
+            }
+            delete seenMedia[key];
+            entriesRemoved++;
+        }
+    }
+
     if (entriesRemoved > 0) {
         // Save the pruned objects back to storage
         await Promise.all([
@@ -355,8 +366,6 @@ async function calculateImageHash(imgElement: HTMLImageElement): Promise<string>
         throw e;
     }
 }
-
-// You likely won't need processRedditThumbnails as a separate call anymore with this approach.
 
 async function initialize() {
     await loadSettings();
