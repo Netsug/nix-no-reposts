@@ -1,15 +1,5 @@
 // options.ts
 
-type SeenPostSubredditEntry = {
-    subreddit: string;
-    timestamp: number; // Unix epoch in milliseconds
-};
-
-type SeenPostIDEntry = {
-    postID: string;
-    timestamp: number; // Unix epoch in milliseconds
-};
-
 // Utility function to save setting
 function saveSetting(key: string, value: number | boolean) {
     chrome.storage.local.set({ [key]: value });
@@ -140,7 +130,7 @@ function setupEventHandlers() {
 
     // Delete storage
     deleteStorageButton.addEventListener('click', () => {
-        chrome.storage.local.remove(['seenPostsSubreddit', 'seenPostsID'], () => {
+        chrome.storage.local.remove(['seenPostsSubreddit', 'seenPostsID', 'seenMedia'], () => {
             updateStats();
         });
     });
@@ -159,54 +149,59 @@ function setupStoredPostsButton() {
     });
 }
 
-    function displayStoredPosts() {
-        const storedPostsList = document.getElementById('storedPostsList')! as HTMLUListElement;
-        const dropdown = document.getElementById('storedPostsDropdown')!;
+function displayStoredPosts() {
+    const storedPostsList = document.getElementById('storedPostsList')! as HTMLUListElement;
+    const dropdown = document.getElementById('storedPostsDropdown')!;
 
-        chrome.storage.local.get(['seenPostsSubreddit', 'seenPostsID'], (data) => {
-            const postsSubreddit = data.seenPostsSubreddit || {};
-            const postsID = data.seenPostsID || {};
+    chrome.storage.local.get(null, (data) => {
+        // Clear previous entries
+        storedPostsList.innerHTML = '';
 
-            // Combine posts into a single list
-            const allPosts = [
-                ...Object.keys(postsSubreddit).map(key => {
-                    const post: SeenPostSubredditEntry = postsSubreddit[key];
-                    const timestamp = post.timestamp;
-                    return `md5hash(title|author): ${key} - md5hash(subreddit): ${post.subreddit} - Timestamp: ${timestamp}`;
-                }),
-                ...Object.keys(postsID).map(key => {
-                    const post: SeenPostIDEntry = postsID[key];
-                    const timestamp = post.timestamp;
-                    const postID = post.postID;
-                    return `md5hash(content-href|author): ${key} - md5hash(postID): ${postID}  Seen at: ${timestamp}`;
-                })
-            ];
+        for (const [key, value] of Object.entries(data)) {
+            if (typeof value === 'object' && value !== null) {
+                for (const [subKey, subValue] of Object.entries(value)) {
+                    const item = document.createElement('li');
+                    const pre = document.createElement('pre');
+                    pre.textContent = `[${key}]\n${subKey}:\n${JSON.stringify(subValue, null, 2)}`;
+                    item.appendChild(pre);                    
+                    storedPostsList.appendChild(item);
+                }
+            } else {
+                const item = document.createElement('li');
+                item.textContent = `${key}: ${JSON.stringify(value)}`;
+                storedPostsList.appendChild(item);
+            }
+        }
 
-            // Clear previous posts and populate new list
-            storedPostsList.innerHTML = '';
-            allPosts.forEach(post => {
-                const listItem = document.createElement('li');
-                listItem.textContent = post;
-                storedPostsList.appendChild(listItem);
-            });
+        // Toggle dropdown visibility
+        dropdown.classList.toggle('hidden');
+    });
+}
 
-            // Toggle the dropdown visibility
-            dropdown.classList.toggle('hidden');
-        });
-    }
 
 // Calculate tracked entries and estimate size
 function updateStats() {
     const trackedEntries = document.getElementById('trackedEntries')!;
     const storageSize = document.getElementById('storageSize')!;
 
-    chrome.storage.local.get(['seenPostsSubreddit', 'seenPostsID'], (data) => {
-        const countSub = Object.keys(data.seenPostsSubreddit || {}).length;
-        const countID = Object.keys(data.seenPostsID || {}).length;
-        const total = countID + countSub;
-        trackedEntries.textContent = total.toString();
+    const excludeKeys = ['debugMode', 'deleteThreshold', 'hideCrossposts', 'incognito'];
 
-        // Roughly estimate size
+    chrome.storage.local.get(null, (data) => {
+        let totalCount = 0;
+
+        for (const [key, value] of Object.entries(data)) {
+            if (excludeKeys.includes(key)) continue;
+
+            if (typeof value === 'object' && value !== null) {
+                totalCount += Object.keys(value).length;
+            } else {
+                totalCount += 1;
+            }
+        }
+
+        trackedEntries.textContent = totalCount.toString();
+
+        // Estimate size (including all data)
         const jsonSize = JSON.stringify(data).length;
         const kbSize = (jsonSize / 1024).toFixed(2);
         storageSize.textContent = `${kbSize} KB`;

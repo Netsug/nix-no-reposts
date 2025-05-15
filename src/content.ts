@@ -145,7 +145,6 @@ async function removeOldEntries(): Promise<void> {
 
 // Perform filtering and update seenPosts in memory
 async function filterPosts() {
-    const now = Date.now();
     const posts = document.querySelectorAll('article');
 
     let hasUpdatesSubreddit: boolean = false;
@@ -160,9 +159,8 @@ async function filterPosts() {
 
         hideThisPost = filterPostByCrosspost(hideThisPost, element);
 
-        let author;
-        ({ author, hideThisPost, hasUpdatesSubreddit } = filterPostBySubreddit(element, hideThisPost, now, hasUpdatesSubreddit));
-        ({ hideThisPost, hasUpdatesID } = filterPostByID(element, author, hideThisPost, now, hasUpdatesID));
+        ({ hideThisPost, hasUpdatesSubreddit } = filterPostBySubreddit(element, hideThisPost, hasUpdatesSubreddit));
+        ({ hideThisPost, hasUpdatesID } = filterPostByID(element, hideThisPost, hasUpdatesID));
         const mediaResult = await filterByImageHash(hideThisPost, element);
 
         hideThisPost = mediaResult.hideThisPost;
@@ -201,12 +199,16 @@ function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
     return hideThisPost;
 }
 
-function filterPostByID(element: Element, author: string, hideThisPost: boolean, now: number, hasUpdatesID: boolean) {
+function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: boolean) {
+    const now = Date.now();
+
+    const authorRaw = element.getAttribute('author') || "";
     const titleRaw = element.getAttribute('post-title') || "";
     const postIDRaw = element.getAttribute('id') || "";
 
     // Hash for consistent storage
     const title = md5hash(titleRaw);
+    const author = md5hash(authorRaw);
     const postID = md5hash(postIDRaw);
     const postKey = md5hash(`${title}|${author}`); // 'author' is already hashed above
 
@@ -236,7 +238,9 @@ function filterPostByID(element: Element, author: string, hideThisPost: boolean,
     return { hideThisPost, hasUpdatesID };
 }
 
-function filterPostBySubreddit(element: Element, hideThisPost: boolean, now: number, hasUpdatesSubreddit: boolean) {
+function filterPostBySubreddit(element: Element, hideThisPost: boolean, hasUpdatesSubreddit: boolean) {
+    const now = Date.now();
+
     const contentLinkRaw = element.getAttribute('content-href')?.toLowerCase() || "";
     const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
     const subredditRaw = element.getAttribute('subreddit-name')?.toLowerCase() || "";
@@ -322,7 +326,6 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
                             }
                         } else {
                             const now = Date.now();
-
                             seenMedia[mediaHash] = {
                                 mediaHash: mediaHash,
                                 postID: postID,
