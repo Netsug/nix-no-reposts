@@ -40,7 +40,6 @@ function formatThresholdLabel(value: number): string {
 }
 
 // Set up event listeners
-// Set up event listeners
 function setupEventHandlers() {
     const rangeInput = document.getElementById('persistentStorage') as HTMLInputElement;
     const rangeLabel = document.getElementById('persistentStorageLabel')!;

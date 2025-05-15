@@ -12,18 +12,78 @@
     <div class="w-full flex-col items-center space-y-6">
         <div class="w-full max-w-2xl mx-auto p-6 rounded-2xl bg-gray-800 shadow-xl">
             <div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
-            <h2 class="text-xl font-semibold border-gray-700">Extension Settings</h2>
-            <a href="https://github.com/Netsug/nixnoreposts" target="_blank" class="text-sm bg-blue-600 hover:bg-blue-900 text-white font-large px-5 py-2 mb-2.5 rounded-lg">
-                Source Code
-            </a>
+                <h2 class="text-xl font-semibold border-gray-700">Extension Settings</h2>
+                <a href="https://github.com/Netsug/nixnoreposts" target="_blank"
+                    class="text-sm bg-blue-600 hover:bg-blue-900 transition text-white font-large px-5 py-2 mb-2.5 rounded-lg">
+                    Source Code
+                </a>
             </div>
 
             <div class="space-y-4 text-lg">
                 <!-- Range Input -->
                 <div class="flex items-center justify-between">
                     <span>Delete stored posts after...</span>
-                    <input type="range" id="persistentStorage" step="1" min="0" max="5" class="accent-blue-500 w-40">
-                    <div id="persistentStorageLabel" class="min-w-[80px] text-right">1 hour</div>
+                    <input type="range" id="persistentStorage" step="1" min="0" max="5"
+                        class="accent-blue-500 hover:accent-blue-700 transition w-40">
+                    <div id="persistentStorageLabel" class="min-w-[80px] text-right">Loading...</div>
+                </div>
+
+                <!-- Text Based filter -->
+                <div class="flex items-center justify-between">
+                    <span>Hide Duplicated Text Posts</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="textPostCheckbox" class="sr-only peer"
+                            onclick="toggleCheckbox(this)">
+                        <div
+                            class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+                        </div>
+                        <div
+                            class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Image & Gif Based filter -->
+                <div class="flex items-center justify-between">
+                    <span>Hide Duplicated Image & GIF Posts</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="imagePostCheckbox" class="sr-only peer"
+                            onclick="toggleCheckbox(this)">
+                        <div
+                            class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+                        </div>
+                        <div
+                            class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+                        </div>
+                    </label>
+                </div>
+
+                                <!-- Video Based filter -->
+                                <div class="flex items-center justify-between">
+                                    <span>Hide Duplicated Video Posts</span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="videoPostCheckbox" class="sr-only peer" onclick="toggleCheckbox(this)">
+                                        <div
+                                            class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+                                        </div>
+                                        <div
+                                            class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+                                        </div>
+                                    </label>          </div>
+
+                <!-- Gallery Based filter -->
+                <div class="flex items-center justify-between">
+                    <span>Hide Duplicated Gallery Posts</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="galleryPostCheckbox" class="sr-only peer"
+                            onclick="toggleCheckbox(this)">
+                        <div
+                            class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-all">
+                        </div>
+                        <div
+                            class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-all peer-checked:translate-x-full">
+                        </div>
+                    </label>
                 </div>
 
                 <!-- Crosspost Toggle -->
@@ -94,7 +154,7 @@
 
                 <!-- Reset Button -->
                 <button id="resetButton"
-                    class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl transition">
+                    class="w-full bg-red-600 hover:bg-red-800 text-white font-bold py-2 px-4 rounded-xl transition">
                     Reset All Settings
                 </button>
             </div>
@@ -115,17 +175,17 @@
             </div>
 
             <button id="deleteStorage"
-                class="w-full mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl transition text-xl">
-                Delete stored posts
+                class="w-full mt-6 bg-red-600 hover:bg-red-800 text-white font-bold py-3 px-4 rounded-xl transition text-xl">
+                Delete Stored Posts
             </button>
         </div>
 
         <!-- View Stored Posts Section -->
-        <div class="w-full max-w-5xl mx-auto p-6 rounded-2xl bg-gray-800 shadow-xl">
+        <div class="w-full max-w-2xl mx-auto p-6 rounded-2xl bg-gray-800 shadow-xl">
             <h2 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">What’s Been Tracked</h2>
 
             <button id="viewStoredPostsButton"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl transition">
+                class="w-full bg-blue-600 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-xl transition">
                 View Stored Posts and Settings
             </button>
 
