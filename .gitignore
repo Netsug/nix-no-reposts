@@ -8,3 +8,5 @@ Thumbs.db
 *.log
 
 .vscode/
+
+public/output.css

@@ -337,7 +337,7 @@ async function calculateImageHash(imgElement: HTMLImageElement): Promise<string>
     try {
         // Fetch image as Blob (bypass CORS if crossOrigin is set)
         const response = await fetch(imgElement.src, { mode: 'cors' });
-        if (!response.ok) {
+        if (!response.ok && isDebugging) {
             throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
         }
         const blob = await response.blob();
