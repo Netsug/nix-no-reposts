@@ -10,6 +10,12 @@ type SeenPostIDEntry = {
     timestamp: number; // Unix epoch in milliseconds
 };
 
+type SeenMediaEntry = {
+    mediaHash: string;
+    postID: string;
+    timestamp: number; // Unix epoch in milliseconds
+};
+
 type ExtensionSettings = {
     deleteThreshold?: number;
     hideCrossposts?: boolean;
@@ -21,10 +27,12 @@ type ExtensionSettings = {
 type StorageData = {
     seenPostsSubreddit: Record<string, SeenPostSubredditEntry>;
     seenPostsID: Record<string, SeenPostIDEntry>;
+    seenMedia: Record<string, SeenMediaEntry>;
 };
 
 let seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
 let seenPostsID: Record<string, SeenPostIDEntry> = {};
+let seenMedia: Record<string, SeenMediaEntry> = {};
 
 function getThresholdMilliseconds(val: number): number | null {
     const msValues = [
@@ -43,6 +51,7 @@ let isFilteringCrossposts: boolean = false;
 let isDebugging: boolean = false;
 let lessAggressivePruning: boolean = false;
 let incognitoExclusiveMode: boolean = false;
+const isMediaDetectionEnabled: boolean = true;
 
 function md5hash(data: string): string {
     return md5(data);
@@ -75,16 +84,13 @@ function getSettings(): Promise<ExtensionSettings> {
 }
 
 async function removeOldEntries(): Promise<void> {
-    const now = Date.now();
-
     // "Never" is selected
     if (deleteThresholdDuration === null) {
         return;
     }
 
-    // Calculate the cutoff time based on the current time and threshold duration
+    const now = Date.now();
     const cutoffTime = now - deleteThresholdDuration;
-
     if (isDebugging) {
         console.log(`Cutoff time is ${new Date(cutoffTime).toISOString()}`);
     }
@@ -126,32 +132,38 @@ async function removeOldEntries(): Promise<void> {
     }
 }
 
-
 // Perform filtering and update seenPosts in memory
-function filterPosts() {
+async function filterPosts() {
     const now = Date.now();
     const posts = document.querySelectorAll('article');
 
     let hasUpdatesSubreddit: boolean = false;
     let hasUpdatesID: boolean = false;
+    let hasUpdatesMedia: boolean = false;
 
-    posts.forEach((post) => {
+    for (const post of posts) {
         const element = post.querySelector('shreddit-post');
         if (!element) return;
 
         let hideThisPost: boolean = false;
         
-        hideThisPost = filterByCrosspost(hideThisPost, element);
+        hideThisPost = filterPostByCrosspost(hideThisPost, element);
 
         let author;
         ({ author, hideThisPost, hasUpdatesSubreddit } = filterPostBySubreddit(element, hideThisPost, now, hasUpdatesSubreddit));
         ({ hideThisPost, hasUpdatesID } = filterPostByID(element, author, hideThisPost, now, hasUpdatesID));
+        const mediaResult = await filterByImageHash(hideThisPost, element);
 
+        hideThisPost = mediaResult.hideThisPost;
+
+        if(mediaResult.hasUpdatesMedia){
+            hasUpdatesMedia = true;
+        }
 
         if (hideThisPost) {
             (post as HTMLElement).style.display = 'none';
         }
-    });
+    };
 
     // Save back to storage only if we added something new
     if (hasUpdatesSubreddit) {
@@ -160,9 +172,12 @@ function filterPosts() {
     if (hasUpdatesID) {
         chrome.storage.local.set({ seenPostsID: seenPostsID });
     }
+    if(hasUpdatesMedia){
+        chrome.storage.local.set({ seenMedia: seenMedia });
+    }
 }
 
-function filterByCrosspost(hideThisPost: boolean, element: Element) {
+function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
     if (isFilteringCrossposts) {
         hideThisPost = isCrosspost(element);
 
@@ -252,6 +267,95 @@ function isCrosspost(element: Element): boolean {
     return element?.hasAttribute('post-type') && element.getAttribute('post-type')?.toLowerCase() === 'crosspost';
 }
 
+async function filterByImageHash(hideThisPost: boolean, post: Element) {
+    let hasUpdatesMedia: boolean = true;
+
+    if (!hideThisPost && isMediaDetectionEnabled) {
+        try {
+            const imageUrl = post.getAttribute('content-href');
+            if (imageUrl) {
+                if (!imageUrl.match(/\.(jpe?g|png|bmp|tiff|webp|svg)$/i)) {
+                    if (isDebugging) console.log("Skipped non-image content-href:", imageUrl);
+                    return { hideThisPost, hasUpdatesMedia };
+                }
+
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+
+                await new Promise<void>((resolve) => {
+                    img.onload = () => resolve();
+                    img.onerror = () => {
+                        if (isDebugging) console.log("Image failed to load:", imageUrl);
+                        resolve();
+                    };
+                    img.src = imageUrl;
+                });
+
+                if (img.naturalWidth > 0 || img.naturalHeight > 0) {
+                    const mediaHash = await calculateImageHash(img);
+                    if (mediaHash) {
+                        if (isDebugging) {
+                            console.log("Media hash: ", mediaHash);
+                        }
+
+                        const storedMediaEntry = seenMedia[mediaHash];
+
+                        if (storedMediaEntry) {
+                            hideThisPost = true;
+                            if (isDebugging) {
+                                console.log(`Filtered duplicate based on media content hash: ${mediaHash}`);
+                            }
+                        } else {
+                            const postIDRaw = post.getAttribute('id') || "";
+                            const postID = md5hash(postIDRaw);
+                            const now = Date.now();
+
+                            seenMedia[mediaHash] = {
+                                mediaHash: mediaHash,
+                                postID: postID,
+                                timestamp: now
+                            };
+
+                            hasUpdatesMedia = true;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            if (isDebugging) {
+                console.log(e);
+            }
+        }
+    }
+
+    return { hideThisPost, hasUpdatesMedia };
+}
+
+async function calculateImageHash(imgElement: HTMLImageElement): Promise<string> {
+    try {
+        // Fetch image as Blob (bypass CORS if crossOrigin is set)
+        const response = await fetch(imgElement.src, { mode: 'cors' });
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        }
+        const blob = await response.blob();
+
+        // Hash the blob bytes using Web Crypto API (SHA-256)
+        const arrayBuffer = await blob.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex;
+    } catch (e) {
+        if (isDebugging) {
+            console.error("Error calculating image hash:", e);
+        }
+        throw e;
+    }
+}
+
+// You likely won't need processRedditThumbnails as a separate call anymore with this approach.
+
 async function initialize() {
     await loadSettings();
     await loadStorageData();
@@ -293,20 +397,20 @@ async function initialize() {
 }
 
 async function loadStorageData(): Promise<void> {
-    // Get all data from storage
     const {
         seenPostsSubreddit: storedSubredditPosts = {},
         seenPostsID: storedIDPosts = {},
-    } = await new Promise<Partial<StorageData>>((resolve) =>
-        chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID"],
-            (result) => resolve(result as StorageData)));
+        seenMedia: storedMedia = {},
+    } = await new Promise<Partial<StorageData & { seenMedia: Record<string, SeenMediaEntry> }>>((resolve) =>
+        chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID", "seenMedia"],
+            (result) => resolve(result)));
 
-    // Update our in-memory objects with all data from storage
     seenPostsSubreddit = storedSubredditPosts;
     seenPostsID = storedIDPosts;
+    seenMedia = storedMedia;
 
     if (isDebugging) {
-        console.log(`Loaded ${Object.keys(seenPostsSubreddit).length} subreddit entries and ${Object.keys(seenPostsID).length} post ID entries from storage`);
+        console.log(`Loaded ${Object.keys(seenPostsSubreddit).length} subreddit entries, ${Object.keys(seenPostsID).length} post ID entries, and ${Object.keys(seenMedia).length} media entries from storage`);
     }
 }
 
