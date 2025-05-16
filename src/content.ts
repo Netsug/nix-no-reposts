@@ -11,7 +11,6 @@ type SeenPostIDEntry = {
 };
 
 type SeenMediaEntry = {
-    mediaHash: string;
     postID: string;
     timestamp: number; // Unix epoch in milliseconds
 };
@@ -327,7 +326,6 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
                         } else {
                             const now = Date.now();
                             seenMedia[mediaHash] = {
-                                mediaHash: mediaHash,
                                 postID: postID,
                                 timestamp: now
                             };
