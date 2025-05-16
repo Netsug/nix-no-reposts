@@ -1,43 +1,63 @@
 // options.ts
 
 // Utility function to save setting
-function saveSetting(key: string, value: number | boolean) {
+function saveSetting(key: string, value: string | number | boolean) {
     chrome.storage.local.set({ [key]: value });
 }
 
-// Load all settings on page load
-function loadSettings() {
-    chrome.storage.local.get([
-        'deleteThreshold',
-        'hideCrossposts',
-        'lessAggressivePruning',
-        'debugMode',
-        'incognito'
-    ], (settings) => {
-        const rangeInput = document.getElementById('persistentStorage') as HTMLInputElement;
-        const rangeLabel = document.getElementById('persistentStorageLabel')!;
-        const crosspostCheckbox = document.getElementById('crosspostCheckbox') as HTMLInputElement;
-        const pruneCheckbox = document.getElementById('pruneCheckbox') as HTMLInputElement;
-        const debugCheckbox = document.getElementById('debugModeCheckbox') as HTMLInputElement;
-        const incognitoModeCheckbox = document.getElementById('incognitoModeCheckbox') as HTMLInputElement;
-
-        // Load values or fallback to defaults
-        const threshold = settings.deleteThreshold ?? 2;
-        rangeInput.value = threshold.toString();
-        rangeLabel.textContent = formatThresholdLabel(threshold);
-
-        crosspostCheckbox.checked = settings.hideCrossposts ?? false;
-        pruneCheckbox.checked = settings.lessAggressivePruning ?? false;
-        debugCheckbox.checked = settings.debugMode ?? false;
-        incognitoModeCheckbox.checked = settings.incognito ?? false;
+// Utility function to load a single setting
+function loadSetting(key: string, defaultValue: number | boolean = false): Promise<number | boolean> {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(key, (item) => {
+            if (item[key] === undefined) {
+                chrome.storage.local.set({ [key]: defaultValue }); // Save default
+                resolve(defaultValue);
+            } else {
+                resolve(item[key]);
+            }
+        });
     });
 }
 
-// Converts index 0-6 to readable label
+// Load all settings on page load
+async function loadSettings() {
+    const rangeInput = document.getElementById('persistentStorage') as HTMLInputElement;
+    const rangeLabel = document.getElementById('persistentStorageLabel')!;
+    const crosspostCheckbox = document.getElementById('crosspostCheckbox') as HTMLInputElement;
+    const pruneCheckbox = document.getElementById('pruneCheckbox') as HTMLInputElement;
+    const debugCheckbox = document.getElementById('debugModeCheckbox') as HTMLInputElement;
+    const incognitoModeCheckbox = document.getElementById('incognitoModeCheckbox') as HTMLInputElement;
+    const hideText = document.getElementById('hideTextPostCheckbox') as HTMLInputElement;
+    const hideImage = document.getElementById('hideImagePostCheckbox') as HTMLInputElement;
+    const hideVideo = document.getElementById('hideVideoPostCheckbox') as HTMLInputElement;
+    const hideGallery = document.getElementById('hideGalleryPostCheckbox') as HTMLInputElement;
+
+    // Load values or fallback to defaults
+    const threshold = await loadSetting('deleteThreshold', 2) as number;
+    rangeInput.value = threshold.toString();
+    rangeLabel.textContent = formatThresholdLabel(threshold);
+
+    crosspostCheckbox.checked = await loadSetting('hideCrossposts', false) as boolean;
+    pruneCheckbox.checked = await loadSetting('lessAggressivePruning', false) as boolean;
+    debugCheckbox.checked = await loadSetting('debugMode', false) as boolean;
+    incognitoModeCheckbox.checked = await loadSetting('incognito', false) as boolean;
+    hideText.checked = await loadSetting('hideTextPosts', true) as boolean;
+    hideImage.checked = await loadSetting('hideImagePosts', true) as boolean;
+    hideVideo.checked = await loadSetting('hideVideoPosts', true) as boolean;
+    hideGallery.checked = await loadSetting('hideGalleryPosts', true) as boolean;
+}
+
+// Converts index 0-5 to readable label
 function formatThresholdLabel(value: number): string {
-    const labels = ['6 hours', '1 day', '2 days', '1 week' , '2 weeks', 'Never'];
+    const labels = ['6 hours', '1 day', '2 days', '1 week', '2 weeks', 'Never'];
     return labels[value] ?? 'Unknown';
 }
+
+// Function to handle checkbox toggles and save settings
+/*function toggleCheckbox(checkbox: HTMLInputElement) {
+    const key = checkbox.id;
+    saveSetting(key, checkbox.checked);
+}*/
 
 // Set up event listeners
 function setupEventHandlers() {
@@ -47,6 +67,10 @@ function setupEventHandlers() {
     const incognitoModeCheckbox = document.getElementById('incognitoModeCheckbox') as HTMLInputElement;
     const pruneCheckbox = document.getElementById('pruneCheckbox') as HTMLInputElement;
     const debugCheckbox = document.getElementById('debugModeCheckbox') as HTMLInputElement;
+    const hideTextCheckbox = document.getElementById('hideTextPostCheckbox') as HTMLInputElement;
+    const hideImageCheckbox = document.getElementById('hideImagePostCheckbox') as HTMLInputElement;
+    const hideVideoCheckbox = document.getElementById('hideVideoPostCheckbox') as HTMLInputElement;
+    const hideGalleryCheckbox = document.getElementById('hideGalleryPostCheckbox') as HTMLInputElement;
 
     const resetButton = document.getElementById('resetButton')!;
     const deleteStorageButton = document.getElementById('deleteStorage')!;
@@ -63,6 +87,22 @@ function setupEventHandlers() {
         saveSetting('hideCrossposts', crosspostCheckbox.checked);
     });
 
+    hideTextCheckbox.addEventListener('change', () => {
+        saveSetting('hideTextPosts', hideTextCheckbox.checked);
+    });
+
+    hideImageCheckbox.addEventListener('change', () => {
+        saveSetting('hideImagePosts', hideImageCheckbox.checked);
+    });
+
+    hideVideoCheckbox.addEventListener('change', () => {
+        saveSetting('hideVideoPosts', hideVideoCheckbox.checked);
+    });
+
+    hideGalleryCheckbox.addEventListener('change', () => {
+        saveSetting('hideGalleryPosts', hideGalleryCheckbox.checked);
+    });
+
     incognitoModeCheckbox.addEventListener('change', (e) => {
         const target = e.target as HTMLInputElement;
         if (target.checked) {
@@ -76,6 +116,7 @@ function setupEventHandlers() {
             // Handle cancel button
             cancelButton.addEventListener('click', () => {
                 target.checked = false;
+                saveSetting('incognito', target.checked); // Revert the setting
                 modal.classList.add('hidden');
             });
 
@@ -88,7 +129,7 @@ function setupEventHandlers() {
             saveSetting('incognito', target.checked);
         }
     });
-    
+
 
     pruneCheckbox.addEventListener('change', () => {
         saveSetting('lessAggressivePruning', pruneCheckbox.checked);
@@ -107,6 +148,7 @@ function setupEventHandlers() {
             // Handle cancel button
             cancelButton.addEventListener('click', () => {
                 target.checked = false;
+                saveSetting('debugMode', target.checked); // Revert the setting
                 modal.classList.add('hidden');
             });
 
@@ -118,12 +160,14 @@ function setupEventHandlers() {
         } else {
             saveSetting('debugMode', target.checked);
         }
-    });    
+    });
 
     // Reset
     resetButton.addEventListener('click', () => {
         chrome.storage.local.clear(() => {
             loadSettings();
+            updateStats();
+            displayStoredPosts(); // Update the displayed stored posts if any
         });
     });
 
@@ -131,9 +175,10 @@ function setupEventHandlers() {
     deleteStorageButton.addEventListener('click', () => {
         chrome.storage.local.remove(['seenPostsSubreddit', 'seenPostsID', 'seenMedia'], () => {
             updateStats();
+            displayStoredPosts(); // Update the displayed stored posts (should be empty)
         });
     });
-    
+
     setupStoredPostsButton();
 
     // Initial stats update
@@ -142,38 +187,54 @@ function setupEventHandlers() {
 
 function setupStoredPostsButton() {
     const viewStoredPostsButton = document.getElementById('viewStoredPostsButton')! as HTMLButtonElement;
+    const storedPostsDropdown = document.getElementById('storedPostsDropdown')!;
 
     viewStoredPostsButton.addEventListener('click', () => {
-        displayStoredPosts(); // Show or hide the stored posts dropdown
+        storedPostsDropdown.classList.toggle('hidden');
+        if (!storedPostsDropdown.classList.contains('hidden')) {
+            displayStoredPosts();
+        }
     });
 }
 
 function displayStoredPosts() {
     const storedPostsList = document.getElementById('storedPostsList')! as HTMLUListElement;
-    const dropdown = document.getElementById('storedPostsDropdown')!;
 
     chrome.storage.local.get(null, (data) => {
         // Clear previous entries
         storedPostsList.innerHTML = '';
 
-        for (const [key, value] of Object.entries(data)) {
-            if (typeof value === 'object' && value !== null) {
-                for (const [subKey, subValue] of Object.entries(value)) {
+        const relevantKeys = ['seenPostsSubreddit', 'seenPostsID', 'seenMedia'];
+
+        relevantKeys.forEach(key => {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const value = data[key];
+                if (typeof value === 'object' && value !== null) {
+                    const listItemTitle = document.createElement('li');
+                    listItemTitle.classList.add('font-semibold', 'mb-1');
+                    listItemTitle.textContent = `--- ${key} ---`;
+                    storedPostsList.appendChild(listItemTitle);
+
+                    for (const [subKey, subValue] of Object.entries(value)) {
+                        const item = document.createElement('li');
+                        const pre = document.createElement('pre');
+                        pre.textContent = `${subKey}:\n${JSON.stringify(subValue, null, 2)}`;
+                        item.appendChild(pre);
+                        storedPostsList.appendChild(item);
+                    }
+                } else {
                     const item = document.createElement('li');
-                    const pre = document.createElement('pre');
-                    pre.textContent = `[${key}]\n${subKey}:\n${JSON.stringify(subValue, null, 2)}`;
-                    item.appendChild(pre);                    
+                    item.textContent = `${key}: ${JSON.stringify(value)}`;
                     storedPostsList.appendChild(item);
                 }
-            } else {
-                const item = document.createElement('li');
-                item.textContent = `${key}: ${JSON.stringify(value)}`;
-                storedPostsList.appendChild(item);
             }
-        }
+        });
 
-        // Toggle dropdown visibility
-        dropdown.classList.toggle('hidden');
+        if (storedPostsList.children.length === 0) {
+            const emptyItem = document.createElement('li');
+            emptyItem.textContent = 'No stored posts data found.';
+            storedPostsList.appendChild(emptyItem);
+        }
     });
 }
 
@@ -183,26 +244,23 @@ function updateStats() {
     const trackedEntries = document.getElementById('trackedEntries')!;
     const storageSize = document.getElementById('storageSize')!;
 
-    const excludeKeys = ['debugMode', 'deleteThreshold', 'hideCrossposts', 'incognito'];
+    const keysToCheck = ['seenPostsSubreddit', 'seenPostsID', 'seenMedia'];
+    let totalCount = 0;
+    let totalSize = 0;
 
-    chrome.storage.local.get(null, (data) => {
-        let totalCount = 0;
-
-        for (const [key, value] of Object.entries(data)) {
-            if (excludeKeys.includes(key)) continue;
-
-            if (typeof value === 'object' && value !== null) {
-                totalCount += Object.keys(value).length;
-            } else {
-                totalCount += 1;
+    chrome.storage.local.get(keysToCheck, (data) => {
+        keysToCheck.forEach(key => {
+            if (Object.prototype.hasOwnProperty.call(data, key) && typeof data[key] === 'object' && data[key] !== null) {
+                totalCount += Object.keys(data[key]).length;
+                totalSize += JSON.stringify(data[key]).length;
+            } else if (Object.prototype.hasOwnProperty.call(data, key)) {
+                totalSize += JSON.stringify(data[key]).length;
+                totalCount += 1; // Consider individual settings as one entry
             }
-        }
+        });
 
         trackedEntries.textContent = totalCount.toString();
-
-        // Estimate size (including all data)
-        const jsonSize = JSON.stringify(data).length;
-        const kbSize = (jsonSize / 1024).toFixed(2);
+        const kbSize = (totalSize / 1024).toFixed(2);
         storageSize.textContent = `${kbSize} KB`;
     });
 }
