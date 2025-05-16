@@ -157,16 +157,9 @@ async function filterPosts() {
         let hideThisPost: boolean = false;
 
         hideThisPost = filterPostByCrosspost(hideThisPost, element);
-
         ({ hideThisPost, hasUpdatesSubreddit } = filterPostBySubreddit(element, hideThisPost, hasUpdatesSubreddit));
         ({ hideThisPost, hasUpdatesID } = filterPostByID(element, hideThisPost, hasUpdatesID));
-        const mediaResult = await filterByImageHash(hideThisPost, element);
-
-        hideThisPost = mediaResult.hideThisPost;
-
-        if (mediaResult.hasUpdatesMedia) {
-            hasUpdatesMedia = true;
-        }
+        ({ hideThisPost, hasUpdatesMedia} = await filterByImageHash(hideThisPost, element));
 
         if (hideThisPost) {
             (post as HTMLElement).style.display = 'none';
@@ -282,7 +275,7 @@ function isCrosspost(element: Element): boolean {
 }
 
 async function filterByImageHash(hideThisPost: boolean, post: Element) {
-    let hasUpdatesMedia: boolean = true;
+    let hasUpdatesMedia: boolean = false; // 'true' could help with debugging
 
     if (!hideThisPost && isMediaDetectionEnabled) {
         try {

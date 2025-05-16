@@ -162,14 +162,20 @@ function setupEventHandlers() {
         }
     });
 
-    // Reset
+    const keysToKeep = ['seenPostsSubreddit', 'seenPostsID', 'seenMedia'];
+
     resetButton.addEventListener('click', () => {
-        chrome.storage.local.clear(() => {
-            loadSettings();
-            updateStats();
-            displayStoredPosts(); // Update the displayed stored posts if any
+        chrome.storage.local.get(null, (items) => {
+            const allKeys = Object.keys(items);
+            const keysToRemove = allKeys.filter(key => !keysToKeep.includes(key));
+
+            chrome.storage.local.remove(keysToRemove, () => {
+                loadSettings();
+                updateStats();
+                displayStoredPosts(); // Update the displayed stored posts if any
+            });
         });
-    });
+    });    
 
     // Delete storage
     deleteStorageButton.addEventListener('click', () => {
