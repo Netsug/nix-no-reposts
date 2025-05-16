@@ -21,7 +21,7 @@ type ExtensionSettings = {
     hideCrossposts?: boolean;
     debugMode?: boolean;
     lessAggressivePruning?: boolean;
-    incognito?: boolean;
+    incognitoExclusiveMode?: boolean;
 };
 
 type StorageData = {
@@ -65,7 +65,7 @@ async function loadSettings(): Promise<void> {
     isFilteringCrossposts = settings.hideCrossposts ?? isFilteringCrossposts;
     isDebugging = settings.debugMode ?? isDebugging;
     lessAggressivePruning = settings.lessAggressivePruning ?? lessAggressivePruning;
-    incognitoExclusiveMode = settings.incognito ?? incognitoExclusiveMode;
+    incognitoExclusiveMode = settings.incognitoExclusiveMode ?? incognitoExclusiveMode;
 
     deleteThresholdDuration = getThresholdMilliseconds(thresholdSetting);
 
@@ -77,7 +77,7 @@ async function loadSettings(): Promise<void> {
 function getSettings(): Promise<ExtensionSettings> {
     return new Promise((resolve) => {
         chrome.storage.local.get(
-            ['deleteThreshold', 'hideCrossposts', 'debugMode', 'lessAggressivePruning', 'incognito'],
+            ['deleteThreshold', 'hideCrossposts', 'debugMode', 'lessAggressivePruning', 'incognitoExclusiveMode'],
             (result) => resolve(result as ExtensionSettings)
         );
     });
@@ -373,25 +373,27 @@ async function calculateImageHash(imgElement: HTMLImageElement): Promise<string>
 async function initialize() {
     await loadSettings();
     await loadStorageData();
+    await checkIncognitoMode();
 
-    let isIncognitoWindow;
+    async function checkIncognitoMode() {
+        let isIncognitoWindow;
 
-    if (chrome.windows && await chrome.windows.getCurrent()) {
-        isIncognitoWindow = await new Promise<boolean>((resolve) => {
-            chrome.runtime.sendMessage({ type: 'getIncognitoStatus' }, (response) => {
-                resolve(response?.isIncognito ?? false);
+        if (chrome.windows && await chrome.windows.getCurrent()) {
+            isIncognitoWindow = await new Promise<boolean>((resolve) => {
+                chrome.runtime.sendMessage({ type: 'getIncognitoStatus' }, (response) => {
+                    resolve(response?.isIncognito ?? false);
+                });
             });
-        });
-    }
-    else {
-        //console.log("Chrome.Windows API not supported");
-    }
-
-    if (incognitoExclusiveMode && !isIncognitoWindow) {
-        if (isDebugging) {
-            console.log("Incognito Exclusive Mode is enabled, but this window is not incognito. Exiting...");
+        } else {
+            //console.log("Chrome.Windows API not supported");
         }
-        return; // Exit if it's not an incognito window and exclusive mode is enabled
+
+        if (incognitoExclusiveMode && !isIncognitoWindow) {
+            if (isDebugging) {
+                console.log("Incognito Exclusive Mode is enabled, but this window is not incognito. Exiting...");
+            }
+            return; // Exit if it's not an incognito window and exclusive mode is enabled
+        }
     }
 
     await removeOldEntries();
@@ -399,15 +401,19 @@ async function initialize() {
 
     // Run filterPosts() every time the DOM changes
     // Debounced observer to avoid excessive triggering
-    let debounceTimer: number;
-    const observer = new MutationObserver(() => {
-        clearTimeout(debounceTimer);
-        debounceTimer = window.setTimeout(() => {
-            filterPosts();
-        }, 50); // 50 milliseconds after the last DOM change is made, call filterPosts()
-    });
+    observer();
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    function observer() {
+        let debounceTimer: number;
+        const observer = new MutationObserver(() => {
+            clearTimeout(debounceTimer);
+            debounceTimer = window.setTimeout(() => {
+                filterPosts();
+            }, 50); // 50 milliseconds after the last DOM change is made, call filterPosts()
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
 }
 
 async function loadStorageData(): Promise<void> {

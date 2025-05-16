@@ -40,7 +40,7 @@ async function loadSettings() {
     crosspostCheckbox.checked = await loadSetting('hideCrossposts', false) as boolean;
     pruneCheckbox.checked = await loadSetting('lessAggressivePruning', false) as boolean;
     debugCheckbox.checked = await loadSetting('debugMode', false) as boolean;
-    incognitoModeCheckbox.checked = await loadSetting('incognito', false) as boolean;
+    incognitoModeCheckbox.checked = await loadSetting('incognitoExclusiveMode', false) as boolean;
     hideText.checked = await loadSetting('hideTextPosts', true) as boolean;
     hideImage.checked = await loadSetting('hideImagePosts', true) as boolean;
     hideVideo.checked = await loadSetting('hideVideoPosts', true) as boolean;
@@ -116,17 +116,17 @@ function setupEventHandlers() {
             // Handle cancel button
             cancelButton.addEventListener('click', () => {
                 target.checked = false;
-                saveSetting('incognito', target.checked); // Revert the setting
+                saveSetting('incognitoExclusiveMode', target.checked); // Revert the setting
                 modal.classList.add('hidden');
             });
 
             // Handle proceed button
             proceedButton.addEventListener('click', () => {
-                saveSetting('incognito', target.checked);
+                saveSetting('incognitoExclusiveMode', target.checked);
                 modal.classList.add('hidden');
             });
         } else {
-            saveSetting('incognito', target.checked);
+            saveSetting('incognitoExclusiveMode', target.checked);
         }
     });
 
