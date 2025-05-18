@@ -7,12 +7,12 @@ type SeenPostSubredditEntry = {
 
 type SeenPostIDEntry = {
     postID: string;
-    timestamp: number; // Unix epoch in milliseconds
+    timestamp: number;
 };
 
 type SeenMediaEntry = {
     postID: string;
-    timestamp: number; // Unix epoch in milliseconds
+    timestamp: number;
 };
 
 type ExtensionSettings = {
@@ -21,6 +21,12 @@ type ExtensionSettings = {
     debugMode?: boolean;
     lessAggressivePruning?: boolean;
     incognitoExclusiveMode?: boolean;
+    hideTextPosts?: boolean;
+    hideImagePosts?: boolean;
+    hideVideoPosts?: boolean;
+    hideGalleryPosts?: boolean;
+    hideMediaPosts?: boolean;
+    hideLinkPosts: boolean;
 };
 
 type StorageData = {
@@ -33,26 +39,37 @@ let seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
 let seenPostsID: Record<string, SeenPostIDEntry> = {};
 let seenMedia: Record<string, SeenMediaEntry> = {};
 
+/**
+ * Converts the value from the range element (0-5) to milliseconds.
+ * 
+ * @param val - The value from the range (0-5)
+ * @returns milliseconds corresponding to the value
+ * 0 = 6 hours, 1 = 1 day, 2 = 2 days, 3 = 1 week, 4 = 2 weeks, 5 = Never
+ */
 function getThresholdMilliseconds(val: number): number | null {
     const msValues = [
-        6 * 60 * 60 * 1000,       // 6 hours
-        24 * 60 * 60 * 1000,      // 1 day
-        2 * 24 * 60 * 60 * 1000,  // 2 days
-        7 * 24 * 60 * 60 * 1000,  // 1 week
-        14 * 24 * 60 * 60 * 1000, // 2 weeks
-        null                     // Never
+        6 * 60 * 60 * 1000,         // 6 hours  - 0
+        24 * 60 * 60 * 1000,        // 1 day    - 1
+        2 * 24 * 60 * 60 * 1000,    // 2 days   - 2
+        7 * 24 * 60 * 60 * 1000,    // 1 week   - 3
+        14 * 24 * 60 * 60 * 1000,   // 2 weeks  - 4
+        null                        // Never    - 5
     ];
     return msValues[val] ?? null;
 }
 
 let deleteThresholdDuration: number | null = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
-let isFilteringCrossposts: boolean = false;
+let isHideCrossposts: boolean = false;
 let isDebugging: boolean = false;
 let lessAggressivePruning: boolean = false;
 let incognitoExclusiveMode: boolean = false;
-const isMediaDetectionEnabled: boolean = true;
+let isHideTextPosts: boolean = true;
+let isHideImageGIFPosts: boolean = true;
+let isHideVideoPosts: boolean = true;
+let isHideGalleryPosts: boolean = true;
+let isHideLinkPosts: boolean = true;
 
-function md5hash(data: string): string {
+function hash(data: string): string {
     return md5(data);
 }
 
@@ -60,13 +77,20 @@ async function loadSettings(): Promise<void> {
     const settings = await getSettings();
 
     // Use default values if the setting is not available
-    const thresholdSetting = settings.deleteThreshold ?? 2;
-    isFilteringCrossposts = settings.hideCrossposts ?? isFilteringCrossposts;
+    const deleteThresholdSetting = settings.deleteThreshold ?? 2;
+    isHideCrossposts = settings.hideCrossposts ?? isHideCrossposts;
     isDebugging = settings.debugMode ?? isDebugging;
     lessAggressivePruning = settings.lessAggressivePruning ?? lessAggressivePruning;
     incognitoExclusiveMode = settings.incognitoExclusiveMode ?? incognitoExclusiveMode;
+    isHideTextPosts = settings.hideTextPosts ?? isHideTextPosts;
+    isHideImageGIFPosts = settings.hideImagePosts ?? isHideImageGIFPosts;
+    isHideVideoPosts = settings.hideVideoPosts ?? isHideVideoPosts;
+    isHideGalleryPosts = settings.hideGalleryPosts ?? isHideGalleryPosts;
+    isHideLinkPosts = settings.hideLinkPosts ?? isHideLinkPosts;
 
-    deleteThresholdDuration = getThresholdMilliseconds(thresholdSetting);
+    // Convert 0-5 to milliseconds
+    // 0 = 6 hours, 1 = 1 day, 2 = 2 days, 3 = 1 week, 4 = 2 weeks, 5 = Never
+    deleteThresholdDuration = getThresholdMilliseconds(deleteThresholdSetting);
 
     if (isDebugging) {
         console.log("Settings loaded: ", settings);
@@ -76,7 +100,17 @@ async function loadSettings(): Promise<void> {
 function getSettings(): Promise<ExtensionSettings> {
     return new Promise((resolve) => {
         chrome.storage.local.get(
-            ['deleteThreshold', 'hideCrossposts', 'debugMode', 'lessAggressivePruning', 'incognitoExclusiveMode'],
+                ['deleteThreshold', 
+                'hideCrossposts', 
+                'debugMode', 
+                'lessAggressivePruning', 
+                'incognitoExclusiveMode', 
+                'hideTextPosts', 
+                'hideImagePosts', 
+                'hideVideoPosts', 
+                'hideGalleryPosts',
+                'hideLinkPosts'
+            ],
             (result) => resolve(result as ExtensionSettings)
         );
     });
@@ -143,23 +177,25 @@ async function removeOldEntries(): Promise<void> {
 }
 
 // Perform filtering and update seenPosts in memory
-async function filterPosts() {
+async function filterPosts(): Promise<void> {
     const posts = document.querySelectorAll('article');
 
     let hasUpdatesSubreddit: boolean = false;
     let hasUpdatesID: boolean = false;
     let hasUpdatesMedia: boolean = false;
 
+    // Iterate through all posts to apply filtering logic based on user settings
     for (const post of posts) {
         const element = post.querySelector('shreddit-post');
-        if (!element) return;
+        if (!element) continue;
 
+        const postType = element?.getAttribute('post-type')?.toLowerCase() ?? "";
         let hideThisPost: boolean = false;
 
-        hideThisPost = filterPostByCrosspost(hideThisPost, element);
-        ({ hideThisPost, hasUpdatesSubreddit } = filterPostBySubreddit(element, hideThisPost, hasUpdatesSubreddit));
-        ({ hideThisPost, hasUpdatesID } = filterPostByID(element, hideThisPost, hasUpdatesID));
-        ({ hideThisPost, hasUpdatesMedia} = await filterByImageHash(hideThisPost, element));
+        // Check if the post type should be hidden based on settings
+        if (shouldHidePostBasedOnType(postType)) {
+            hideThisPost = await processPostFilters(hideThisPost, element);
+        }
 
         if (hideThisPost) {
             (post as HTMLElement).style.display = 'none';
@@ -167,19 +203,40 @@ async function filterPosts() {
     };
 
     // Save back to storage only if we added something new
-    if (hasUpdatesSubreddit) {
-        chrome.storage.local.set({ seenPostsSubreddit: seenPostsSubreddit });
+    updatePostStorage();
+
+    async function processPostFilters(hideThisPost: boolean, element: Element): Promise<boolean> {
+        hideThisPost = filterPostByCrosspost(hideThisPost, element);
+        ({ hideThisPost, hasUpdatesSubreddit } = filterPostBySubreddit(element, hideThisPost, hasUpdatesSubreddit));
+        ({ hideThisPost, hasUpdatesID } = filterPostByID(element, hideThisPost, hasUpdatesID));
+        ({ hideThisPost, hasUpdatesMedia } = await filterByImageHash(hideThisPost, element));
+        return hideThisPost;
     }
-    if (hasUpdatesID) {
-        chrome.storage.local.set({ seenPostsID: seenPostsID });
+
+    function shouldHidePostBasedOnType(postType: string): boolean {
+        return (postType === 'crosspost' && isHideCrossposts) ||
+            (postType === 'text' && isHideTextPosts) ||
+            (postType === 'video' && isHideVideoPosts) ||
+            (postType === 'gallery' && isHideGalleryPosts) ||
+            ((postType === 'gif' || postType === 'image') && isHideImageGIFPosts) ||
+            (postType === 'link' && isHideLinkPosts)
+            ;
     }
-    if (hasUpdatesMedia) {
-        chrome.storage.local.set({ seenMedia: seenMedia });
+
+    function updatePostStorage(): void {
+        if (hasUpdatesSubreddit) {
+            chrome.storage.local.set({ seenPostsSubreddit: seenPostsSubreddit });
+        }
+        if (hasUpdatesID) {
+            chrome.storage.local.set({ seenPostsID: seenPostsID });
+        }
+        if (hasUpdatesMedia) {
+            chrome.storage.local.set({ seenMedia: seenMedia });
+        }
     }
 }
 
 function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
-    if (isFilteringCrossposts) {
         hideThisPost = isCrosspost(element);
 
         if (isDebugging) {
@@ -187,7 +244,6 @@ function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
                 console.log("Filtered post based on crosspost");
             }
         }
-    }
     return hideThisPost;
 }
 
@@ -199,10 +255,10 @@ function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: b
     const postIDRaw = element.getAttribute('id') || "";
 
     // Hash for consistent storage
-    const title = md5hash(titleRaw);
-    const author = md5hash(authorRaw);
-    const postID = md5hash(postIDRaw);
-    const postKey = md5hash(`${title}|${author}`); // 'author' is already hashed above
+    const title = hash(titleRaw);
+    const author = hash(authorRaw);
+    const postID = hash(postIDRaw);
+    const postKey = hash(`${title}|${author}`);
 
     if (isDebugging) {
         console.log(`Post Key (title|author): ${titleRaw}|${author}`);
@@ -237,11 +293,11 @@ function filterPostBySubreddit(element: Element, hideThisPost: boolean, hasUpdat
     const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
     const subredditRaw = element.getAttribute('subreddit-name')?.toLowerCase() || "";
 
-    const contentLink = md5hash(contentLinkRaw);
-    const author = md5hash(authorRaw);
-    const subreddit = md5hash(subredditRaw);
+    const contentLink = hash(contentLinkRaw);
+    const author = hash(authorRaw);
+    const subreddit = hash(subredditRaw);
 
-    const key = md5hash(`${contentLink}|${author}`);
+    const key = hash(`${contentLink}|${author}`);
 
     if (isDebugging) {
         console.log(`Key (content|author): ${key}, Subreddit: ${subredditRaw}`);
@@ -277,11 +333,11 @@ function isCrosspost(element: Element): boolean {
 async function filterByImageHash(hideThisPost: boolean, post: Element) {
     let hasUpdatesMedia: boolean = false; // 'true' could help with debugging
 
-    if (!hideThisPost && isMediaDetectionEnabled) {
+    if (!hideThisPost) {
         try {
             const imageUrl = post.getAttribute('content-href');
             if (imageUrl) {
-                if (!imageUrl.match(/\.(jpe?g|png|bmp|tiff|webp|svg)$/i)) {
+                if (!imageUrl.match(/\.(jpe?g|png|bmp|tiff|webp|svg|gif)$/i)) { // Only hashes the first image of gifs
                     if (isDebugging) console.log("Skipped non-image content-href:", imageUrl);
                     return { hideThisPost, hasUpdatesMedia };
                 }
@@ -307,7 +363,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
 
                         const storedMediaEntry = seenMedia[mediaHash];
                         const postIDRaw = post.getAttribute('id') || "";
-                        const postID = md5hash(postIDRaw);
+                        const postID = hash(postIDRaw);
 
                         if (storedMediaEntry) {
                             if (storedMediaEntry.postID != postID) {

@@ -28,6 +28,7 @@ async function loadSettings() {
     const debugCheckbox = document.getElementById('debugModeCheckbox') as HTMLInputElement;
     const incognitoModeCheckbox = document.getElementById('incognitoModeCheckbox') as HTMLInputElement;
     const hideText = document.getElementById('hideTextPostCheckbox') as HTMLInputElement;
+    const hideLink = document.getElementById('hideLinkPostCheckbox') as HTMLInputElement;
     const hideImage = document.getElementById('hideImagePostCheckbox') as HTMLInputElement;
     const hideVideo = document.getElementById('hideVideoPostCheckbox') as HTMLInputElement;
     const hideGallery = document.getElementById('hideGalleryPostCheckbox') as HTMLInputElement;
@@ -42,6 +43,7 @@ async function loadSettings() {
     debugCheckbox.checked = await loadSetting('debugMode', false) as boolean;
     incognitoModeCheckbox.checked = await loadSetting('incognitoExclusiveMode', false) as boolean;
     hideText.checked = await loadSetting('hideTextPosts', true) as boolean;
+    hideLink.checked = await loadSetting('hideLinkPosts', true) as boolean;
     hideImage.checked = await loadSetting('hideImagePosts', true) as boolean;
     hideVideo.checked = await loadSetting('hideVideoPosts', true) as boolean;
     hideGallery.checked = await loadSetting('hideGalleryPosts', true) as boolean;
@@ -68,10 +70,10 @@ function setupEventHandlers() {
     const pruneCheckbox = document.getElementById('pruneCheckbox') as HTMLInputElement;
     const debugCheckbox = document.getElementById('debugModeCheckbox') as HTMLInputElement;
     const hideTextCheckbox = document.getElementById('hideTextPostCheckbox') as HTMLInputElement;
+    const hideLinkCheckbox = document.getElementById('hideLinkPostCheckbox') as HTMLInputElement;
     const hideImageCheckbox = document.getElementById('hideImagePostCheckbox') as HTMLInputElement;
     const hideVideoCheckbox = document.getElementById('hideVideoPostCheckbox') as HTMLInputElement;
     const hideGalleryCheckbox = document.getElementById('hideGalleryPostCheckbox') as HTMLInputElement;
-
     const resetButton = document.getElementById('resetButton')!;
     const deleteStorageButton = document.getElementById('deleteStorage')!;
 
@@ -89,6 +91,10 @@ function setupEventHandlers() {
 
     hideTextCheckbox.addEventListener('change', () => {
         saveSetting('hideTextPosts', hideTextCheckbox.checked);
+    });
+
+    hideLinkCheckbox.addEventListener('change', () => {
+        saveSetting('hideLinkPosts', hideLinkCheckbox.checked);
     });
 
     hideImageCheckbox.addEventListener('change', () => {
@@ -130,11 +136,12 @@ function setupEventHandlers() {
         }
     });
 
-
+    // Prune checkbox
     pruneCheckbox.addEventListener('change', () => {
         saveSetting('lessAggressivePruning', pruneCheckbox.checked);
     });
 
+    // Debug mode checkbox
     debugCheckbox.addEventListener('change', (e) => {
         const target = e.target as HTMLInputElement;
         if (target.checked) {
@@ -164,6 +171,8 @@ function setupEventHandlers() {
 
     const keysToKeep = ['seenPostsSubreddit', 'seenPostsID', 'seenMedia'];
 
+    // Reset storage
+    // This will remove all keys except the ones in keysToKeep
     resetButton.addEventListener('click', () => {
         chrome.storage.local.get(null, (items) => {
             const allKeys = Object.keys(items);
@@ -191,6 +200,7 @@ function setupEventHandlers() {
     updateStats();
 }
 
+// Set up the button to view stored posts
 function setupStoredPostsButton() {
     const viewStoredPostsButton = document.getElementById('viewStoredPostsButton')! as HTMLButtonElement;
     const storedPostsDropdown = document.getElementById('storedPostsDropdown')!;
@@ -203,6 +213,7 @@ function setupStoredPostsButton() {
     });
 }
 
+// Display stored posts in the dropdown
 function displayStoredPosts() {
     const storedPostsList = document.getElementById('storedPostsList')! as HTMLUListElement;
 
