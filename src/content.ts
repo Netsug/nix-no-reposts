@@ -100,14 +100,14 @@ async function loadSettings(): Promise<void> {
 function getSettings(): Promise<ExtensionSettings> {
     return new Promise((resolve) => {
         chrome.storage.local.get(
-                ['deleteThreshold', 
-                'hideCrossposts', 
-                'debugMode', 
-                'lessAggressivePruning', 
-                'incognitoExclusiveMode', 
-                'hideTextPosts', 
-                'hideImagePosts', 
-                'hideVideoPosts', 
+            ['deleteThreshold',
+                'hideCrossposts',
+                'debugMode',
+                'lessAggressivePruning',
+                'incognitoExclusiveMode',
+                'hideTextPosts',
+                'hideImagePosts',
+                'hideVideoPosts',
                 'hideGalleryPosts',
                 'hideLinkPosts'
             ],
@@ -205,11 +205,16 @@ async function filterPosts(): Promise<void> {
     // Save back to storage only if we added something new
     updatePostStorage();
 
+    // BY WHICH METHOD we filter a post is disconnected from IF we filter a post
+    // An image post can be filtered by its ID for example.
     async function processPostFilters(hideThisPost: boolean, element: Element): Promise<boolean> {
+        
+        // Ordered from least intensive to most intensive
         hideThisPost = filterPostByCrosspost(hideThisPost, element);
         ({ hideThisPost, hasUpdatesSubreddit } = filterPostBySubreddit(element, hideThisPost, hasUpdatesSubreddit));
         ({ hideThisPost, hasUpdatesID } = filterPostByID(element, hideThisPost, hasUpdatesID));
         ({ hideThisPost, hasUpdatesMedia } = await filterByImageHash(hideThisPost, element));
+        ({ hideThisPost, hasUpdatesMedia } = await filterByVideoHash(hideThisPost, element));
         return hideThisPost;
     }
 
@@ -237,17 +242,27 @@ async function filterPosts(): Promise<void> {
 }
 
 function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
-        hideThisPost = isCrosspost(element);
+    if(hideThisPost){
+        // Post already hidden
+        return hideThisPost;
+    }
 
-        if (isDebugging) {
-            if (hideThisPost) {
-                console.log("Filtered post based on crosspost");
-            }
+    hideThisPost = isCrosspost(element);
+
+    if (isDebugging) {
+        if (hideThisPost) {
+            console.log("Filtered post based on crosspost");
         }
+    }
     return hideThisPost;
 }
 
 function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: boolean) {
+    if (hideThisPost) {
+        // Post already hidden;
+        return { hideThisPost, hasUpdatesID };
+    }
+
     const now = Date.now();
 
     const authorRaw = element.getAttribute('author') || "";
@@ -264,24 +279,24 @@ function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: b
         console.log(`Post Key (title|author): ${titleRaw}|${author}`);
     }
 
-    if (!hideThisPost) {
-        if (!lessAggressivePruning) {
-            const storedTitleEntry = seenPostsID[postKey];
-            if (storedTitleEntry) {
-                if (storedTitleEntry.postID !== postID) {
-                    hideThisPost = true;
-                    if (isDebugging) {
-                        console.log(`Filtered duplicate with similar title: ${titleRaw}`);
-                    }
-                }
-            } else {
-                seenPostsID[postKey] = {
-                    postID: postID,
-                    timestamp: now
-                };
-                hasUpdatesID = true;
+    if (lessAggressivePruning) {
+        return { hideThisPost, hasUpdatesID };
+    }
+
+    const storedTitleEntry = seenPostsID[postKey];
+    if (storedTitleEntry) {
+        if (storedTitleEntry.postID !== postID) {
+            hideThisPost = true;
+            if (isDebugging) {
+                console.log(`Filtered duplicate with similar title: ${titleRaw}`);
             }
         }
+    } else {
+        seenPostsID[postKey] = {
+            postID: postID,
+            timestamp: now
+        };
+        hasUpdatesID = true;
     }
     return { hideThisPost, hasUpdatesID };
 }
@@ -323,7 +338,7 @@ function filterPostBySubreddit(element: Element, hideThisPost: boolean, hasUpdat
         };
         hasUpdatesSubreddit = true;
     }
-    return { author, hideThisPost, hasUpdatesSubreddit };
+    return { hideThisPost, hasUpdatesSubreddit };
 }
 
 function isCrosspost(element: Element): boolean {
@@ -331,90 +346,142 @@ function isCrosspost(element: Element): boolean {
 }
 
 async function filterByImageHash(hideThisPost: boolean, post: Element) {
-    let hasUpdatesMedia: boolean = false; // 'true' could help with debugging
+    let hasUpdatesMedia = false;
 
-    if (!hideThisPost) {
-        try {
-            const imageUrl = post.getAttribute('content-href');
-            if (imageUrl) {
-                if (!imageUrl.match(/\.(jpe?g|png|bmp|tiff|webp|svg|gif)$/i)) { // Only hashes the first image of gifs
-                    if (isDebugging) console.log("Skipped non-image content-href:", imageUrl);
-                    return { hideThisPost, hasUpdatesMedia };
-                }
+    if (hideThisPost) {
+        return { hideThisPost, hasUpdatesMedia };
+    }
 
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
+    try {
+        const imageUrl = post.getAttribute('content-href');
+        if (!imageUrl) {
+            return { hideThisPost, hasUpdatesMedia };
+        }
 
-                await new Promise<void>((resolve) => {
-                    img.onload = () => resolve();
-                    img.onerror = () => {
-                        if (isDebugging) console.log("Image failed to load:", imageUrl);
-                        resolve();
-                    };
-                    img.src = imageUrl;
-                });
+        // Ask background to fetch and hash the image
+        const mediaHash = await new Promise<string | null>((resolve) => {
+            const timeoutId = setTimeout(() => {
+                console.warn('Timeout waiting for background response');
+                resolve(null);
+            }, 5000); // 5 seconds timeout
 
-                if (img.naturalWidth > 0 || img.naturalHeight > 0) {
-                    const mediaHash = await calculateImageHash(img);
-                    if (mediaHash) {
-                        if (isDebugging) {
-                            console.log("Media hash: ", mediaHash);
-                        }
-
-                        const storedMediaEntry = seenMedia[mediaHash];
-                        const postIDRaw = post.getAttribute('id') || "";
-                        const postID = hash(postIDRaw);
-
-                        if (storedMediaEntry) {
-                            if (storedMediaEntry.postID != postID) {
-                                hideThisPost = true;
-                                if (isDebugging) {
-                                    console.log(`Filtered duplicate based on media content hash: ${mediaHash}`);
-                                }
-                            }
-                        } else {
-                            const now = Date.now();
-                            seenMedia[mediaHash] = {
-                                postID: postID,
-                                timestamp: now
-                            };
-
-                            hasUpdatesMedia = true;
-                        }
+            chrome.runtime.sendMessage(
+                { type: 'fetchAndHashImage', url: imageUrl },
+                (response) => {
+                    clearTimeout(timeoutId);
+                    if (chrome.runtime.lastError) {
+                        console.error('chrome.runtime.lastError:', chrome.runtime.lastError.message);
+                        resolve(null);
+                        return;
+                    }
+                    if (response && response.hash) {
+                        resolve(response.hash);
+                    } else {
+                        resolve(null);
                     }
                 }
-            }
-        } catch (e) {
-            if (isDebugging) {
-                console.log(e);
-            }
+            );
+        });
+        
+
+        if (!mediaHash) {
+            return { hideThisPost, hasUpdatesMedia };
         }
+
+        if (isDebugging) {
+            console.log("Media hash: ", mediaHash);
+        }
+
+        const storedMediaEntry = seenMedia[mediaHash];
+        const postIDRaw = post.getAttribute('id') || "";
+        const postID = hash(postIDRaw);
+
+        if (storedMediaEntry) {
+            if (storedMediaEntry.postID != postID) {
+                hideThisPost = true;
+                if (isDebugging) {
+                    console.log(`Filtered duplicate based on media content hash: ${mediaHash}`);
+                }
+            }
+        } else {
+            const now = Date.now();
+            seenMedia[mediaHash] = { postID, timestamp: now };
+            hasUpdatesMedia = true;
+        }
+    } catch (e) {
+        if (isDebugging) console.log(e);
     }
 
     return { hideThisPost, hasUpdatesMedia };
 }
 
-async function calculateImageHash(imgElement: HTMLImageElement): Promise<string> {
-    try {
-        // Fetch image as Blob (bypass CORS if crossOrigin is set)
-        const response = await fetch(imgElement.src, { mode: 'cors' });
-        if (!response.ok && isDebugging) {
-            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
-        }
-        const blob = await response.blob();
+async function filterByVideoHash(hideThisPost: boolean, post: Element){
+    let hasUpdatesMedia: boolean = false;
 
-        // Hash the blob bytes using Web Crypto API (SHA-256)
-        const arrayBuffer = await blob.arrayBuffer();
-        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        return hashHex;
-    } catch (e) {
-        if (isDebugging) {
-            console.error("Error calculating image hash:", e);
-        }
-        throw e;
+    if(hideThisPost){
+        // Post is already hidden
+        return { hideThisPost, hasUpdatesMedia };
     }
+
+    const videoUrl = post.getAttribute('content-href');
+    if (!videoUrl) {
+        // Video link doesn't exist
+        return { hideThisPost, hasUpdatesMedia };
+    }
+
+    const videoHash = await new Promise<string | null>((resolve) => {
+        const timeoutId = setTimeout(() => {
+            console.warn('Timeout waiting for background response');
+            resolve(null);
+        }, 5000); // 5 seconds timeout
+
+        chrome.runtime.sendMessage(
+            { type: 'fetchAndHashVideo', url: videoUrl },
+            (response) => {
+                clearTimeout(timeoutId);
+                if (chrome.runtime.lastError) {
+                    console.error('chrome.runtime.lastError:', chrome.runtime.lastError.message);
+                    resolve(null);
+                    return;
+                }
+                if (response && response.hash) {
+                    resolve(response.hash);
+                } else {
+                    resolve(null);
+                }
+            }
+        );
+    });
+    
+
+    if (!videoHash) {
+        // Hash didn't work
+        return { hideThisPost, hasUpdatesMedia };
+    }
+    if (isDebugging) {
+        console.log("Video hash: ", videoHash);
+    }
+    const storedMediaEntry = seenMedia[videoHash];
+    const postIDRaw = post.getAttribute('id') || "";
+    const postID = hash(postIDRaw);
+    if (storedMediaEntry) {
+        if (storedMediaEntry.postID != postID) {
+            hideThisPost = true;
+            if (isDebugging) {
+                console.log(`Filtered duplicate based on video content hash: ${videoHash}`);
+            }
+        }
+    } else {
+        const now = Date.now();
+        seenMedia[videoHash] = {
+            postID: postID,
+            timestamp: now
+        };
+
+        hasUpdatesMedia = true;
+    }
+
+    return { hideThisPost, hasUpdatesMedia };
 }
 
 async function initialize() {

@@ -1,10 +1,28 @@
-// This is used to check if the current window is in incognito mode
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'getIncognitoStatus') {
         chrome.windows.getCurrent({}, (window) => {
             sendResponse({ isIncognito: window?.incognito ?? false });
         });
-        return true; // Keep the message channel open
+        return true; // keep message channel open
+    }
+
+    if (message.type === 'fetchAndHashVideo' || message.type === 'fetchAndHashImage') {
+        fetch(message.url)
+            .then(response => {
+                if (!response.ok) throw new Error('Fetch failed');
+                return response.blob();
+            })
+            .then(blob => blob.arrayBuffer())
+            .then(arrayBuffer => crypto.subtle.digest('SHA-256', arrayBuffer))
+            .then(hashBuffer => {
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                sendResponse({ hash: hashHex });
+            })
+            .catch(error => {
+                console.error(`${message.type} fetch/hash error:`, error);
+                sendResponse({ hash: null, error: error.message });
+            });
+        return true; // keep async response channel open
     }
 });
