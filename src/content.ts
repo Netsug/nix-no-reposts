@@ -370,63 +370,92 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
     const isGallery = post.getAttribute("post-type") === "gallery";
 
     if (isGallery) {
-        const contentRefUrl = post.getAttribute('content-href');
-        if (!contentRefUrl) {
+        const result = await processGalleryImages(post, hideThisPost);
+        hideThisPost = result.hideThisPost;
+        hasUpdatesMedia = hasUpdatesMedia || result.hasUpdatesMedia;
+        processGalleryImages(post, hideThisPost);
+
+        /**
+         * Processes gallery images: fetches image URLs, hashes them, and updates seenMedia.
+         * 
+         * @param post - The post element containing the gallery
+         * @param hideThisPost - Flag to indicate if the post should be hidden
+         * @returns 
+         */
+        async function processGalleryImages(post: Element, hideThisPost: boolean): Promise<{ hideThisPost: boolean, hasUpdatesMedia: boolean }> {
+            let hasUpdatesMedia = false;
+            const contentRefUrl = post.getAttribute('content-href');
+            if (!contentRefUrl) {
             console.warn('No content-href attribute on gallery post');
             return { hideThisPost, hasUpdatesMedia };
-        }
+            }
 
-        let imageUrls: string[] = [];
-        try {
+            let imageUrls: string[] = [];
+            try {
             imageUrls = await fetchGalleryImageUrls(contentRefUrl);
-        } catch (e) {
+            } catch (e) {
             console.error('Failed to get gallery images:', e);
             return { hideThisPost, hasUpdatesMedia };
-        }
+            }
 
-        if (imageUrls.length === 0 && isDebugging) {
+            if (imageUrls.length === 0 && isDebugging) {
             console.warn("No images found in gallery page");
             return { hideThisPost, hasUpdatesMedia };
-        }
+            }
 
-        if (isDebugging) {
+            if (isDebugging) {
             console.log("Gallery post detected, image URLs: ", imageUrls);
-        }
+            }
 
-        const fetchHash = await fetchGalleryHashes(imageUrls);
-        const combinedHash = fetchHash ? fetchHash.slice(0, 32) : ""; // Saving only the first 32 characters
+            const fetchHash = await fetchGalleryHashes(imageUrls);
+            const combinedHash = fetchHash ? fetchHash.slice(0, 32) : ""; // Saving only the first 32 characters
 
-        if (!combinedHash && isDebugging) {
+            if (!combinedHash && isDebugging) {
             console.warn('Failed to get combined gallery hash');
             return { hideThisPost, hasUpdatesMedia };
-        }
+            }
 
-        if (isDebugging) {
+            if (isDebugging) {
             console.log("Combined hash: ", combinedHash);
-        }
+            }
 
-        if (combinedHash.length < 32) {
+            if (combinedHash.length < 32) {
             console.warn("Combined hash is too short: ", combinedHash);
             return { hideThisPost, hasUpdatesMedia };
-        }
+            }
 
-        const storedMediaEntry = seenMedia[combinedHash];
-        const postIDRaw = post.getAttribute('id') || "";
-        const postID = hash(postIDRaw);
-    
-        if (storedMediaEntry) {
+            const storedMediaEntry = seenMedia[combinedHash];
+            const postIDRaw = post.getAttribute('id') || "";
+            const postID = hash(postIDRaw);
+
+            if (storedMediaEntry) {
             if (storedMediaEntry.postID != postID) {
                 hideThisPost = true;
                 if (isDebugging) {
-                    console.log(`Filtered duplicate based on gallery content hash: ${combinedHash}`);
+                console.log(`Filtered duplicate based on gallery content hash: ${combinedHash}`);
                 }
             }
-        } else {
+            } else {
             seenMedia[combinedHash] = { postID, timestamp: Date.now() };
             hasUpdatesMedia = true;
+            }
+            return { hideThisPost, hasUpdatesMedia };
         }
-
     } else {
+        processSingleImage(post, hideThisPost);
+    }
+
+    return { hideThisPost, hasUpdatesMedia };
+
+    /**
+     * Fetches the hash of a single image.
+     * 
+     * @param post - The post element containing the image
+     * @param hideThisPost - Flag to indicate if the post should be hidden
+     * @returns 
+     */
+    async function processSingleImage(post: Element, hideThisPost: boolean): Promise<{ hideThisPost: boolean, hasUpdatesMedia: boolean }> {
+        let hasUpdatesMedia = false;
         const imageUrl = post.getAttribute('content-href');
         if (!imageUrl) return { hideThisPost, hasUpdatesMedia };
 
@@ -446,17 +475,26 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             if (storedMediaEntry.postID != postID) {
                 hideThisPost = true;
                 if (isDebugging) {
-                    console.log(`Filtered duplicate based on media content hash: ${ mediaHash }`);
+                    console.log(`Filtered duplicate based on media content hash: ${mediaHash}`);
                 }
             }
         } else {
             seenMedia[mediaHash] = { postID, timestamp: Date.now() };
             hasUpdatesMedia = true;
         }
+        return { hideThisPost, hasUpdatesMedia };
     }
 
-    return { hideThisPost, hasUpdatesMedia };
+    const result = await processSingleImage(post, hideThisPost);
+    hideThisPost = result.hideThisPost;
+    hasUpdatesMedia = hasUpdatesMedia || result.hasUpdatesMedia;
 
+    /**
+     * Fetches the hashes of images in a gallery.
+     * 
+     * @param imageUrls - Array of image URLs to fetch and hash
+     * @returns 
+     */
     async function fetchGalleryHashes(imageUrls: string[] = []): Promise<string> {
         const hashes: string[] = [];
 
@@ -481,6 +519,12 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
         return combinedHash;
     }
 
+    /**
+     * Fetches the image URLs from a gallery post.
+     * 
+     * @param url - The URL of the gallery post
+     * @returns 
+     */
     async function fetchGalleryImageUrls(url: string): Promise<string[]> {
         return new Promise((resolve, reject) => {
             // Convert post url to json url (add .json at the end)
@@ -547,6 +591,12 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
         });
     }
 
+    /**
+     * Fetches the hash of an image from a given URL.
+     * 
+     * @param imageUrl - The URL of the image to fetch and hash
+     * @returns 
+     */
     async function fetchImageHash(imageUrl: string) {
         return await new Promise<string | null>((resolve) => {
             const timeoutId = setTimeout(() => {
