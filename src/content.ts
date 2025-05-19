@@ -393,7 +393,8 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             console.log("Gallery post detected, image URLs: ", imageUrls);
         }
 
-        const combinedHash = await fetchGalleryHashes(imageUrls);
+        const fetchHash = await fetchGalleryHashes(imageUrls);
+        const combinedHash = fetchHash ? fetchHash.slice(0, 32) : ""; // Saving only the first 32 characters
 
         if (!combinedHash && isDebugging) {
             console.warn('Failed to get combined gallery hash');
@@ -712,4 +713,3 @@ async function loadStorageData(): Promise<void> {
 }
 
 initialize();
-
