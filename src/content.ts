@@ -176,7 +176,10 @@ async function removeOldEntries(): Promise<void> {
     }
 }
 
-// Perform filtering and update seenPosts in memory
+let processedPosts = new Set<string>();
+
+// Perform filtering and update seenPosts in memory.
+// Save to storage only if we added something new.
 async function filterPosts(): Promise<void> {
     const posts = document.querySelectorAll('article');
 
@@ -188,6 +191,28 @@ async function filterPosts(): Promise<void> {
     for (const post of posts) {
         const element = post.querySelector('shreddit-post');
         if (!element) continue;
+
+        const postID = post.getAttribute('id') || "";
+
+        // Check if the post has already been processed
+        if (processedPosts.has(postID)) {
+            if (isDebugging) {
+                console.log("Skipping already processed post");
+            }
+            continue;
+        }
+        if(postID){
+            processedPosts.add(postID);
+        }
+
+        // Check if the post is already hidden
+        if ((post as HTMLElement).style.display === 'none') {
+            if (isDebugging) {
+                console.log("Skipping already hidden post");
+            }
+            continue;
+        }
+
 
         const postType = element?.getAttribute('post-type')?.toLowerCase() ?? "";
         let hideThisPost: boolean = false;
@@ -270,7 +295,6 @@ function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
     }
     return hideThisPost;
 }
-
 
 // The other methods are most likely reliable enough to make this obsolete.
 // I.e this causes more trouble than it solves.
@@ -370,6 +394,9 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
     const isGallery = post.getAttribute("post-type") === "gallery";
 
     if (isGallery) {
+
+        console.log(post.getAttribute("post-title"));
+
         const result = await processGalleryImages(post, hideThisPost);
         hideThisPost = result.hideThisPost;
         hasUpdatesMedia = hasUpdatesMedia || result.hasUpdatesMedia;
@@ -386,7 +413,9 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             let hasUpdatesMedia = false;
             const contentRefUrl = post.getAttribute('content-href');
             if (!contentRefUrl) {
-            console.warn('No content-href attribute on gallery post');
+                if (isDebugging) {
+                    console.warn('No content-href attribute on gallery post');
+                }
             return { hideThisPost, hasUpdatesMedia };
             }
 
@@ -394,7 +423,9 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             try {
             imageUrls = await fetchGalleryImageUrls(contentRefUrl);
             } catch (e) {
-            console.error('Failed to get gallery images:', e);
+                if(isDebugging){
+                console.error('Failed to get gallery images:', e);
+                }
             return { hideThisPost, hasUpdatesMedia };
             }
 
@@ -624,6 +655,13 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
     }
 }
 
+/**
+ * Filters posts based on video hash.
+ * 
+ * @param hideThisPost - Flag to indicate if the post should be hidden
+ * @param post - The post element to filter
+ * @returns 
+ */
 async function filterByVideoHash(hideThisPost: boolean, post: Element){
     let hasUpdatesMedia: boolean = false;
 
@@ -638,10 +676,15 @@ async function filterByVideoHash(hideThisPost: boolean, post: Element){
         return { hideThisPost, hasUpdatesMedia };
     }
 
-    const mediaHash = await fetchVideoHash();
-    const videoHash = mediaHash ? mediaHash.slice(0, 32) : null; // Saving only the first 32 characters
+    //If its a gif we skip it
+    if (videoUrl.endsWith('.gif') || videoUrl.endsWith('.gifv')) {
+        return { hideThisPost, hasUpdatesMedia };
+    }
 
-    if (!mediaHash || mediaHash.length < 32 || !videoHash) {
+    const mediaHash = await fetchVideoHash();
+    const videoHash = mediaHash ? mediaHash.slice(0, 32) : ""; // Saving only the first 32 characters
+
+    if ((!mediaHash || mediaHash.length < 32 || !videoHash) && isDebugging) {
         console.warn("(Video) Hash didn't work " + videoUrl);
         return { hideThisPost, hasUpdatesMedia };
     }
@@ -698,6 +741,32 @@ async function filterByVideoHash(hideThisPost: boolean, post: Element){
     }
 }
 
+/**
+ * Loads storage data from Chrome's local storage.
+ * 
+ * @returns 
+ */
+async function loadStorageData(): Promise<void> {
+    const {
+        seenPostsSubreddit: storedSubredditPosts = {},
+        seenPostsID: storedIDPosts = {},
+        seenMedia: storedMedia = {},
+    } = await new Promise<Partial<StorageData & { seenMedia: Record<string, SeenMediaEntry> }>>((resolve) =>
+        chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID", "seenMedia"],
+            (result) => resolve(result)));
+
+    seenPostsSubreddit = storedSubredditPosts;
+    seenPostsID = storedIDPosts;
+    seenMedia = storedMedia;
+
+    if (isDebugging) {
+        console.log(`Loaded ${Object.keys(seenPostsSubreddit).length} subreddit entries, ${Object.keys(seenPostsID).length} post ID entries, and ${Object.keys(seenMedia).length} media entries from storage`);
+    }
+}
+
+/**
+ * Initializes the extension by loading settings, storage data, and setting up observers.
+ */
 async function initialize() {
     await loadSettings();
     await loadStorageData();
@@ -741,24 +810,6 @@ async function initialize() {
         });
 
         observer.observe(document.body, { childList: true, subtree: true });
-    }
-}
-
-async function loadStorageData(): Promise<void> {
-    const {
-        seenPostsSubreddit: storedSubredditPosts = {},
-        seenPostsID: storedIDPosts = {},
-        seenMedia: storedMedia = {},
-    } = await new Promise<Partial<StorageData & { seenMedia: Record<string, SeenMediaEntry> }>>((resolve) =>
-        chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID", "seenMedia"],
-            (result) => resolve(result)));
-
-    seenPostsSubreddit = storedSubredditPosts;
-    seenPostsID = storedIDPosts;
-    seenMedia = storedMedia;
-
-    if (isDebugging) {
-        console.log(`Loaded ${Object.keys(seenPostsSubreddit).length} subreddit entries, ${Object.keys(seenPostsID).length} post ID entries, and ${Object.keys(seenMedia).length} media entries from storage`);
     }
 }
 
