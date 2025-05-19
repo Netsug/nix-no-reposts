@@ -322,8 +322,6 @@ function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: b
     */
 
 function filterPostBySubreddit(element: Element, hideThisPost: boolean, hasUpdatesSubreddit: boolean) {
-    const now = Date.now();
-
     const contentLinkRaw = element.getAttribute('content-href')?.toLowerCase() || "";
     const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
     const subredditRaw = element.getAttribute('subreddit-name')?.toLowerCase() || "";
@@ -354,7 +352,7 @@ function filterPostBySubreddit(element: Element, hideThisPost: boolean, hasUpdat
         // First time seeing this content+author combo. Add it to the storage.
         seenPostsSubreddit[key] = {
             subreddit: subreddit,
-            timestamp: now
+            timestamp: Date.now()
         };
         hasUpdatesSubreddit = true;
     }
@@ -386,27 +384,31 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             return { hideThisPost, hasUpdatesMedia };
         }
 
-        if (imageUrls.length === 0) {
+        if (imageUrls.length === 0 && isDebugging) {
             console.warn("No images found in gallery page");
             return { hideThisPost, hasUpdatesMedia };
         }
 
-        console.log("Gallery image URLs: ", imageUrls);
+        if (isDebugging) {
+            console.log("Gallery post detected, image URLs: ", imageUrls);
+        }
 
         const combinedHash = await fetchGalleryHashes(imageUrls);
 
-        if (!combinedHash) {
+        if (!combinedHash && isDebugging) {
             console.warn('Failed to get combined gallery hash');
             return { hideThisPost, hasUpdatesMedia };
         }
 
-        console.log("Combined hash: ", combinedHash);
+        if (isDebugging) {
+            console.log("Combined hash: ", combinedHash);
+        }
+
         if (combinedHash.length < 32) {
             console.warn("Combined hash is too short: ", combinedHash);
             return { hideThisPost, hasUpdatesMedia };
         }
 
-        // Use combinedHash in your seenMedia logic as before
         const storedMediaEntry = seenMedia[combinedHash];
         const postIDRaw = post.getAttribute('id') || "";
         const postID = hash(postIDRaw);
@@ -455,25 +457,26 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
     return { hideThisPost, hasUpdatesMedia };
 
     async function fetchGalleryHashes(imageUrls: string[] = []): Promise<string> {
-
-        let s: string = "";
+        const hashes: string[] = [];
 
         for (const imageUrl of imageUrls) {
             const hash = await fetchImageHash(imageUrl);
             if (hash) {
-                s += hash;
+                hashes.push(hash);
             } else {
-                console.warn("Failed to fetch image hash for URL: ", imageUrl);
+                if (isDebugging) {
+                    console.warn("Failed to fetch image hash for URL: ", imageUrl);
+                }
             }
         }
 
-        if (s.length === 0) {
+        if (hashes.length === 0 && isDebugging) {
             console.warn("No hashes found for gallery images");
             return "";
         }
 
         // Hash the concatenated string of hashes
-        const combinedHash = hash(s);
+        const combinedHash = hash(hashes.join(''));
         return combinedHash;
     }
 
@@ -607,10 +610,9 @@ async function filterByVideoHash(hideThisPost: boolean, post: Element){
             }
         }
     } else {
-        const now = Date.now();
         seenMedia[videoHash] = {
             postID: postID,
-            timestamp: now
+            timestamp: Date.now()
         };
 
         hasUpdatesMedia = true;
