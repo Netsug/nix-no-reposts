@@ -184,7 +184,7 @@ async function filterPosts(): Promise<void> {
     const posts = document.querySelectorAll('article');
 
     let hasUpdatesSubreddit: boolean = false;
-    //let hasUpdatesID: boolean = false;
+    let hasUpdatesID: boolean = false;
     let hasUpdatesMedia: boolean = false;
 
     // Iterate through all posts to apply filtering logic based on user settings
@@ -192,27 +192,18 @@ async function filterPosts(): Promise<void> {
         const element = post.querySelector('shreddit-post');
         if (!element) continue;
 
-        const postID = post.getAttribute('id') || "";
+        const postID = element.getAttribute('id') || "";
 
         // Check if the post has already been processed
         if (processedPosts.has(postID)) {
             if (isDebugging) {
-                console.log("Skipping already processed post");
+                console.log("Skipping already processed post: ", postID);
             }
             continue;
         }
-        if(postID){
+        if (postID) {
             processedPosts.add(postID);
         }
-
-        // Check if the post is already hidden
-        if ((post as HTMLElement).style.display === 'none') {
-            if (isDebugging) {
-                console.log("Skipping already hidden post");
-            }
-            continue;
-        }
-
 
         const postType = element?.getAttribute('post-type')?.toLowerCase() ?? "";
         let hideThisPost: boolean = false;
@@ -235,11 +226,11 @@ async function filterPosts(): Promise<void> {
     async function processPostFilters(hideThisPost: boolean, element: Element): Promise<boolean> {
         // Ordered from least intensive to most intensive
         hideThisPost = filterPostByCrosspost(hideThisPost, element);
-        
+
         ({ hideThisPost, hasUpdatesSubreddit } = filterPostBySubreddit(element, hideThisPost, hasUpdatesSubreddit));
-        
-        //({ hideThisPost, hasUpdatesID } = filterPostByID(element, hideThisPost, hasUpdatesID));
-        
+
+        ({ hideThisPost, hasUpdatesID } = filterPostByID(element, hideThisPost, hasUpdatesID));
+
         const imageResult = await filterByImageHash(hideThisPost, element);
         hideThisPost = imageResult.hideThisPost;
         hasUpdatesMedia = hasUpdatesMedia || imageResult.hasUpdatesMedia;
@@ -268,20 +259,20 @@ async function filterPosts(): Promise<void> {
             promises.push(chrome.storage.local.set({ seenPostsSubreddit }));
         }
 
-        /*if (hasUpdatesID) {
+        if (hasUpdatesID) {
             promises.push(chrome.storage.local.set({ seenPostsID }));
-        }*/
+        }
 
         if (hasUpdatesMedia) {
             promises.push(chrome.storage.local.set({ seenMedia }));
         }
 
         await Promise.all(promises);
-    }    
+    }
 }
 
 function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
-    if(hideThisPost){
+    if (hideThisPost) {
         // Post already hidden
         return hideThisPost;
     }
@@ -298,7 +289,7 @@ function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
 
 // The other methods are most likely reliable enough to make this obsolete.
 // I.e this causes more trouble than it solves.
-/*
+// TO-maybe-DO: Remove this? 
 function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: boolean) {
     if (hideThisPost) {
         // Post already hidden;
@@ -343,33 +334,34 @@ function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: b
     }
     return { hideThisPost, hasUpdatesID };
 }
-    */
 
 function filterPostBySubreddit(element: Element, hideThisPost: boolean, hasUpdatesSubreddit: boolean) {
-    const contentLinkRaw = element.getAttribute('content-href')?.toLowerCase() || "";
+    const content_href_raw = element.getAttribute('content-href')?.toLowerCase() || "";
     const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
     const subredditRaw = element.getAttribute('subreddit-name')?.toLowerCase() || "";
 
-    const contentLink = hash(contentLinkRaw);
+    const content_href = hash(content_href_raw);
     const author = hash(authorRaw);
     const subreddit = hash(subredditRaw);
 
-    const key = hash(`${contentLink}|${author}`);
+    const key = hash(`${content_href}|${author}`);
+
+    //const key = hash(`${content_href}`);
 
     if (isDebugging) {
-        console.log(`Key (content|author): ${key}, Subreddit: ${subredditRaw}`);
+        console.log(`Post Key (content-href): ${content_href_raw}, Subreddit: ${subredditRaw}`);
     }
 
     const storedSubredditEntry = seenPostsSubreddit[key];
 
-    // If the entry exists... (if we have seen this author + content-link before)
+    // If the entry exists... (if we have seen this content-link before)
     if (storedSubredditEntry) {
         // and the entry's subreddit is not equal to this <article> subreddit
         if (storedSubredditEntry.subreddit !== subreddit) {
             // Hide it
             hideThisPost = true;
             if (isDebugging) {
-                console.log(`Filtered duplicate from another subreddit: ${subreddit}`);
+                console.log(`Filtered duplicate from another subreddit: ${subredditRaw} , with content-href: ${content_href_raw}`);
             }
         }
     } else {
@@ -397,81 +389,6 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
         const result = await processGalleryImages(post, hideThisPost);
         hideThisPost = result.hideThisPost;
         hasUpdatesMedia = result.hasUpdatesMedia;
-
-        /**
-         * Processes gallery images: fetches image URLs, hashes them, and updates seenMedia.
-         * 
-         * @param post - The post element containing the gallery
-         * @param hideThisPost - Flag to indicate if the post should be hidden
-         * @returns 
-         */
-        async function processGalleryImages(post: Element, hideThisPost: boolean): Promise<{ hideThisPost: boolean, hasUpdatesMedia: boolean }> {
-            let hasUpdatesMedia = false;
-            const contentRefUrl = post.getAttribute('content-href');
-            if (!contentRefUrl) {
-                if (isDebugging) {
-                    console.warn('No content-href attribute on gallery post');
-                }
-            return { hideThisPost, hasUpdatesMedia };
-            }
-
-            let imageUrls: string[] = [];
-            try {
-                imageUrls = await fetchGalleryImageUrls(contentRefUrl);
-            } catch (e) {
-                if(isDebugging){
-                    console.error('Failed to get gallery images:', e);
-                }
-            return { hideThisPost, hasUpdatesMedia };
-            }
-
-            if (imageUrls.length === 0) {
-                if (isDebugging) {
-                    console.warn("No images found in gallery post");
-                }
-                return { hideThisPost, hasUpdatesMedia };
-            }
-
-            if (isDebugging) {
-                console.log("Gallery post detected, image URLs: ", imageUrls);
-            }
-
-            const fetchHash = await fetchGalleryHashes(imageUrls);
-            const combinedHash = fetchHash ? fetchHash.slice(0, 32) : ""; // Saving only the first 32 characters
-
-            if (!combinedHash) {
-                if (isDebugging) {
-                    console.warn("Gallery hash failed for: ", contentRefUrl);
-                }
-                return { hideThisPost, hasUpdatesMedia };
-            }
-
-            if (isDebugging) {
-                console.log("Combined hash: ", combinedHash);
-            }
-
-            if (combinedHash.length < 32) {
-                console.warn("Combined hash is too short: ", combinedHash);
-                return { hideThisPost, hasUpdatesMedia };
-            }
-
-            const storedMediaEntry = seenMedia[combinedHash];
-            const postIDRaw = post.getAttribute('id') || "";
-            const postID = hash(postIDRaw);
-
-            if (storedMediaEntry) {
-                if (storedMediaEntry.postID != postID) {
-                    hideThisPost = true;
-                    if (isDebugging) {
-                        console.log(`Filtered duplicate based on gallery content hash: ${combinedHash}`);
-                    }
-                }
-            } else {
-                seenMedia[combinedHash] = { postID, timestamp: Date.now() };
-                hasUpdatesMedia = true;
-            }
-            return { hideThisPost, hasUpdatesMedia };
-        }
     } else {
         const result = await processSingleImage(post, hideThisPost);
         hideThisPost = result.hideThisPost;
@@ -479,6 +396,81 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
     }
 
     return { hideThisPost, hasUpdatesMedia };
+
+    /**
+ * Processes gallery images: fetches image URLs, hashes them, and updates seenMedia.
+ * 
+ * @param post - The post element containing the gallery
+ * @param hideThisPost - Flag to indicate if the post should be hidden
+ * @returns 
+ */
+    async function processGalleryImages(post: Element, hideThisPost: boolean): Promise<{ hideThisPost: boolean, hasUpdatesMedia: boolean }> {
+        let hasUpdatesMedia = false;
+        const contentRefUrl = post.getAttribute('content-href');
+        if (!contentRefUrl) {
+            if (isDebugging) {
+                console.warn('No content-href attribute on gallery post');
+            }
+            return { hideThisPost, hasUpdatesMedia };
+        }
+
+        let imageUrls: string[] = [];
+        try {
+            imageUrls = await fetchGalleryImageUrls(contentRefUrl);
+        } catch (e) {
+            if (isDebugging) {
+                console.error('Failed to get gallery images:', e);
+            }
+            return { hideThisPost, hasUpdatesMedia };
+        }
+
+        if (imageUrls.length === 0) {
+            if (isDebugging) {
+                console.warn("No images found in gallery post");
+            }
+            return { hideThisPost, hasUpdatesMedia };
+        }
+
+        if (isDebugging) {
+            console.log("Gallery post detected, image URLs: ", imageUrls);
+        }
+
+        const fetchHash = await fetchGalleryHashes(imageUrls);
+        const combinedHash = fetchHash ? fetchHash.slice(0, 32) : ""; // Saving only the first 32 characters
+
+        if (!combinedHash) {
+            if (isDebugging) {
+                console.warn("Gallery hash failed for: ", contentRefUrl);
+            }
+            return { hideThisPost, hasUpdatesMedia };
+        }
+
+        if (isDebugging) {
+            console.log("Combined hash: ", combinedHash);
+        }
+
+        if (combinedHash.length < 32) {
+            console.warn("Combined hash is too short: ", combinedHash);
+            return { hideThisPost, hasUpdatesMedia };
+        }
+
+        const storedMediaEntry = seenMedia[combinedHash];
+        const postIDRaw = post.getAttribute('id') || "";
+        const postID = hash(postIDRaw);
+
+        if (storedMediaEntry) {
+            if (storedMediaEntry.postID != postID) {
+                hideThisPost = true;
+                if (isDebugging) {
+                    console.log(`Filtered duplicate based on gallery content hash: ${combinedHash}`);
+                }
+            }
+        } else {
+            seenMedia[combinedHash] = { postID, timestamp: Date.now() };
+            hasUpdatesMedia = true;
+        }
+        return { hideThisPost, hasUpdatesMedia };
+    }
 
     /**
      * Fetches the hash of a single image.
@@ -493,14 +485,16 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
         if (!imageUrl) return { hideThisPost, hasUpdatesMedia };
 
         const fetchedHash = await fetchImageHash(imageUrl);
-        const mediaHash = fetchedHash ? fetchedHash.slice(0, 32) : null;
+        const key = fetchedHash ? fetchedHash.slice(0, 32) : "";
 
-        if (!mediaHash) {
-            console.warn("Image hash failed for:", imageUrl);
+        if (!key) {
+            if (isDebugging) {
+                console.warn("Image hash failed for:", imageUrl);
+            }
             return { hideThisPost, hasUpdatesMedia };
         }
 
-        const storedMediaEntry = seenMedia[mediaHash];
+        const storedMediaEntry = seenMedia[key];
         const postIDRaw = post.getAttribute('id') || "";
         const postID = hash(postIDRaw);
 
@@ -508,11 +502,11 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             if (storedMediaEntry.postID != postID) {
                 hideThisPost = true;
                 if (isDebugging) {
-                    console.log(`Filtered duplicate based on media content hash: ${mediaHash}`);
+                    console.log(`Filtered duplicate based on media content hash: ${key}, URL: ${imageUrl}`);
                 }
             }
         } else {
-            seenMedia[mediaHash] = { postID, timestamp: Date.now() };
+            seenMedia[key] = { postID, timestamp: Date.now() };
             hasUpdatesMedia = true;
         }
         return { hideThisPost, hasUpdatesMedia };
@@ -662,13 +656,20 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
  * @param post - The post element to filter
  * @returns 
  */
-async function filterByVideoHash(hideThisPost: boolean, post: Element){
+async function filterByVideoHash(hideThisPost: boolean, post: Element) {
     let hasUpdatesMedia: boolean = false;
 
-    if(hideThisPost){
+    if (hideThisPost) {
         // Post is already hidden
         return { hideThisPost, hasUpdatesMedia };
     }
+
+    const postType = post.getAttribute('post-type')?.toLowerCase() || "";
+    if (postType !== 'video') {
+        // Not a video post
+        return { hideThisPost, hasUpdatesMedia };
+    }
+
 
     const videoUrl = post.getAttribute('content-href');
     if (!videoUrl) {
@@ -798,75 +799,24 @@ async function initialize() {
     await removeOldEntries();
     filterPosts();
 
-    // Run filterPosts() every time the DOM changes
-    // Debounced observer to avoid excessive triggering
-    //observer();
-/*
-    function observer() {
-        let debounceTimer: number;
-        const observer = new MutationObserver(() => {
-            clearTimeout(debounceTimer);
-            debounceTimer = window.setTimeout(() => {
-                filterPosts();
-            }, 50); // 50 milliseconds after the last DOM change is made, call filterPosts()
-        });
-
-        observer.observe(document.body, { childList: true, subtree: true });
-    }
-*/
     setupObserver();
 
     function setupObserver() {
-        let debounceTimer: number;
-        let isProcessing = false;
+        // Run filterPosts() every time the DOM changes
+        // Debounced observer to avoid excessive triggering
+        observer();
 
-        // Specifically target the main content area instead of the entire body
-        // This selector may need adjustment based on Reddit's actual DOM structure
-        const targetNode = document.querySelector('div[class*="feed-container"]') || document.body;
-
-        const observer = new MutationObserver((mutations) => {
-            // Skip if we're already processing
-            if (isProcessing) return;
-
-            // Check if mutations contain post-related changes
-            const hasRelevantChanges = mutations.some(mutation => {
-                // Only care about added nodes that might be posts
-                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                    return Array.from(mutation.addedNodes).some(node => {
-                        // Check if the node or its children might contain posts
-                        const element = node as Element;
-                        if (element.tagName) {
-                            return element.tagName.toLowerCase() === 'article' ||
-                                element.querySelector('article') !== null;
-                        }
-                        return false;
-                    });
-                }
-                return false;
+        function observer() {
+            let debounceTimer: number;
+            const observer = new MutationObserver(() => {
+                clearTimeout(debounceTimer);
+                debounceTimer = window.setTimeout(() => {
+                    filterPosts();
+                }, 100); // 100 milliseconds after the last DOM change is made, call filterPosts()
             });
 
-            // Only proceed if we found relevant changes
-            if (!hasRelevantChanges) return;
-
-            // Use a longer debounce time
-            clearTimeout(debounceTimer);
-            debounceTimer = window.setTimeout(() => {
-                isProcessing = true;
-                filterPosts().finally(() => {
-                    isProcessing = false;
-                });
-            }, 200); // Increased from 50ms to 200ms
-        });
-
-        // Configure observer to watch for specific changes
-        observer.observe(targetNode, {
-            childList: true,      // Watch for posts being added
-            subtree: true,        // Include children
-            attributes: false,    // Ignore attribute changes
-            characterData: false  // Ignore text changes
-        });
-
-        return observer;
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
     }
 }
 
