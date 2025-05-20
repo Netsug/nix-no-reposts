@@ -176,7 +176,7 @@ async function removeOldEntries(): Promise<void> {
     }
 }
 
-let processedPosts = new Set<string>();
+const processedPosts = new Set<string>();
 
 // Perform filtering and update seenPosts in memory.
 // Save to storage only if we added something new.
@@ -394,13 +394,9 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
     const isGallery = post.getAttribute("post-type") === "gallery";
 
     if (isGallery) {
-
-        console.log(post.getAttribute("post-title"));
-
         const result = await processGalleryImages(post, hideThisPost);
         hideThisPost = result.hideThisPost;
-        hasUpdatesMedia = hasUpdatesMedia || result.hasUpdatesMedia;
-        processGalleryImages(post, hideThisPost);
+        hasUpdatesMedia = result.hasUpdatesMedia;
 
         /**
          * Processes gallery images: fetches image URLs, hashes them, and updates seenMedia.
@@ -421,38 +417,42 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
 
             let imageUrls: string[] = [];
             try {
-            imageUrls = await fetchGalleryImageUrls(contentRefUrl);
+                imageUrls = await fetchGalleryImageUrls(contentRefUrl);
             } catch (e) {
                 if(isDebugging){
-                console.error('Failed to get gallery images:', e);
+                    console.error('Failed to get gallery images:', e);
                 }
             return { hideThisPost, hasUpdatesMedia };
             }
 
-            if (imageUrls.length === 0 && isDebugging) {
-            console.warn("No images found in gallery page");
-            return { hideThisPost, hasUpdatesMedia };
+            if (imageUrls.length === 0) {
+                if (isDebugging) {
+                    console.warn("No images found in gallery post");
+                }
+                return { hideThisPost, hasUpdatesMedia };
             }
 
             if (isDebugging) {
-            console.log("Gallery post detected, image URLs: ", imageUrls);
+                console.log("Gallery post detected, image URLs: ", imageUrls);
             }
 
             const fetchHash = await fetchGalleryHashes(imageUrls);
             const combinedHash = fetchHash ? fetchHash.slice(0, 32) : ""; // Saving only the first 32 characters
 
-            if (!combinedHash && isDebugging) {
-            console.warn('Failed to get combined gallery hash');
-            return { hideThisPost, hasUpdatesMedia };
+            if (!combinedHash) {
+                if (isDebugging) {
+                    console.warn("Gallery hash failed for: ", contentRefUrl);
+                }
+                return { hideThisPost, hasUpdatesMedia };
             }
 
             if (isDebugging) {
-            console.log("Combined hash: ", combinedHash);
+                console.log("Combined hash: ", combinedHash);
             }
 
             if (combinedHash.length < 32) {
-            console.warn("Combined hash is too short: ", combinedHash);
-            return { hideThisPost, hasUpdatesMedia };
+                console.warn("Combined hash is too short: ", combinedHash);
+                return { hideThisPost, hasUpdatesMedia };
             }
 
             const storedMediaEntry = seenMedia[combinedHash];
@@ -460,20 +460,22 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             const postID = hash(postIDRaw);
 
             if (storedMediaEntry) {
-            if (storedMediaEntry.postID != postID) {
-                hideThisPost = true;
-                if (isDebugging) {
-                console.log(`Filtered duplicate based on gallery content hash: ${combinedHash}`);
+                if (storedMediaEntry.postID != postID) {
+                    hideThisPost = true;
+                    if (isDebugging) {
+                        console.log(`Filtered duplicate based on gallery content hash: ${combinedHash}`);
+                    }
                 }
-            }
             } else {
-            seenMedia[combinedHash] = { postID, timestamp: Date.now() };
-            hasUpdatesMedia = true;
+                seenMedia[combinedHash] = { postID, timestamp: Date.now() };
+                hasUpdatesMedia = true;
             }
             return { hideThisPost, hasUpdatesMedia };
         }
     } else {
-        processSingleImage(post, hideThisPost);
+        const result = await processSingleImage(post, hideThisPost);
+        hideThisPost = result.hideThisPost;
+        hasUpdatesMedia = result.hasUpdatesMedia;
     }
 
     return { hideThisPost, hasUpdatesMedia };
@@ -516,10 +518,6 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
         return { hideThisPost, hasUpdatesMedia };
     }
 
-    const result = await processSingleImage(post, hideThisPost);
-    hideThisPost = result.hideThisPost;
-    hasUpdatesMedia = hasUpdatesMedia || result.hasUpdatesMedia;
-
     /**
      * Fetches the hashes of images in a gallery.
      * 
@@ -540,8 +538,10 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             }
         }
 
-        if (hashes.length === 0 && isDebugging) {
-            console.warn("No hashes found for gallery images");
+        if (hashes.length === 0) {
+            if (isDebugging) {
+                console.warn("No hashes found for gallery images");
+            }
             return "";
         }
 
@@ -684,13 +684,15 @@ async function filterByVideoHash(hideThisPost: boolean, post: Element){
     const mediaHash = await fetchVideoHash();
     const videoHash = mediaHash ? mediaHash.slice(0, 32) : ""; // Saving only the first 32 characters
 
-    if ((!mediaHash || mediaHash.length < 32 || !videoHash) && isDebugging) {
-        console.warn("(Video) Hash didn't work " + videoUrl);
+    if (!mediaHash || mediaHash.length < 32 || !videoHash) {
+        if (isDebugging) {
+            console.warn("(Video) Hash didn't work " + videoUrl);
+        }
         return { hideThisPost, hasUpdatesMedia };
     }
 
     if (isDebugging) {
-        console.log("Video hash: ", videoHash);
+        console.log("Video hash: ", videoHash + " for URL: " + videoUrl + " Title: " + post.getAttribute('post-title'));
     }
 
     const storedMediaEntry = seenMedia[videoHash];
@@ -798,8 +800,8 @@ async function initialize() {
 
     // Run filterPosts() every time the DOM changes
     // Debounced observer to avoid excessive triggering
-    observer();
-
+    //observer();
+/*
     function observer() {
         let debounceTimer: number;
         const observer = new MutationObserver(() => {
@@ -810,6 +812,61 @@ async function initialize() {
         });
 
         observer.observe(document.body, { childList: true, subtree: true });
+    }
+*/
+    setupObserver();
+
+    function setupObserver() {
+        let debounceTimer: number;
+        let isProcessing = false;
+
+        // Specifically target the main content area instead of the entire body
+        // This selector may need adjustment based on Reddit's actual DOM structure
+        const targetNode = document.querySelector('div[class*="feed-container"]') || document.body;
+
+        const observer = new MutationObserver((mutations) => {
+            // Skip if we're already processing
+            if (isProcessing) return;
+
+            // Check if mutations contain post-related changes
+            const hasRelevantChanges = mutations.some(mutation => {
+                // Only care about added nodes that might be posts
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    return Array.from(mutation.addedNodes).some(node => {
+                        // Check if the node or its children might contain posts
+                        const element = node as Element;
+                        if (element.tagName) {
+                            return element.tagName.toLowerCase() === 'article' ||
+                                element.querySelector('article') !== null;
+                        }
+                        return false;
+                    });
+                }
+                return false;
+            });
+
+            // Only proceed if we found relevant changes
+            if (!hasRelevantChanges) return;
+
+            // Use a longer debounce time
+            clearTimeout(debounceTimer);
+            debounceTimer = window.setTimeout(() => {
+                isProcessing = true;
+                filterPosts().finally(() => {
+                    isProcessing = false;
+                });
+            }, 200); // Increased from 50ms to 200ms
+        });
+
+        // Configure observer to watch for specific changes
+        observer.observe(targetNode, {
+            childList: true,      // Watch for posts being added
+            subtree: true,        // Include children
+            attributes: false,    // Ignore attribute changes
+            characterData: false  // Ignore text changes
+        });
+
+        return observer;
     }
 }
 
