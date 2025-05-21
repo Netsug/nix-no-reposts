@@ -1,0 +1,35 @@
+{
+    "manifest_version": 3,
+    "name": "Nix No Reposts",
+    "version": "1.0",
+    "description": "Filters Reddit posts so you only have to see each once.",
+    "icons": {
+        "16": "images/icon-16.png",
+        "48": "images/icon-48.png",
+        "128": "images/icon-128.png"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "permissions": [
+        "storage", 
+        "scripting", 
+        "activeTab",
+        "windows"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "options_page": "public/options.html",
+    "content_scripts": [
+        {
+            "matches": [
+                "https://www.reddit.com/*"
+            ],
+            "js": [
+                "dist/content.js"
+            ],
+            "run_at": "document_end"
+        }
+    ]
+}
