@@ -1,5 +1,3 @@
-import md5 from 'blueimp-md5'; // TODO: Switch to BLAKE3 / SHA-1. Something fast and secure.
-
 type SeenPostSubredditEntry = {
     subreddit: string;
     timestamp: number; // Unix epoch in milliseconds
@@ -69,11 +67,24 @@ let isHideVideoPosts: boolean = true;
 let isHideGalleryPosts: boolean = true;
 let isHideLinkPosts: boolean = true;
 
-function hash(data: string): string {
-    return md5(data);
+/**
+ * Hashes a string using SHA-256
+ * @param data - String to hash
+ * @returns SHA-256 hash as a hex string
+ */
+async function hash(data: string): Promise<string> {
+    // Use the Web Crypto API to create a SHA-256 hash
+    const msgUint8 = new TextEncoder().encode(data);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+
+    // Convert buffer to hex string
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    return hashHex.slice(0, 32); // Return only the first 32 characters
 }
 
-async function loadSettings(): Promise<void> {
+async function loadExtensionSettings(): Promise<void> {
     const settings = await getSettings();
 
     // Use default values if the setting is not available
@@ -227,9 +238,9 @@ async function filterPosts(): Promise<void> {
         // Ordered from least intensive to most intensive
         hideThisPost = filterPostByCrosspost(hideThisPost, element);
 
-        ({ hideThisPost, hasUpdatesSubreddit } = filterPostBySubreddit(element, hideThisPost, hasUpdatesSubreddit));
+        ({ hideThisPost, hasUpdatesSubreddit } = await filterPostBySubreddit(element, hideThisPost, hasUpdatesSubreddit));
 
-        ({ hideThisPost, hasUpdatesID } = filterPostByID(element, hideThisPost, hasUpdatesID));
+        ({ hideThisPost, hasUpdatesID } = await filterPostByID(element, hideThisPost, hasUpdatesID));
 
         const imageResult = await filterByImageHash(hideThisPost, element);
         hideThisPost = imageResult.hideThisPost;
@@ -290,7 +301,7 @@ function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
 // The other methods are most likely reliable enough to make this obsolete.
 // I.e this causes more trouble than it solves.
 // TO-maybe-DO: Remove this? 
-function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: boolean) {
+async function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: boolean) {
     if (hideThisPost) {
         // Post already hidden;
         return { hideThisPost, hasUpdatesID };
@@ -302,10 +313,10 @@ function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: b
     const titleRaw = element.getAttribute('post-title') || "";
     const postIDRaw = element.getAttribute('id') || "";
 
-    const title = hash(titleRaw);
-    const author = hash(authorRaw);
-    const postID = hash(postIDRaw);
-    const postKey = hash(`${title}|${author}`);
+    const title = await hash(titleRaw);
+    const author = await hash(authorRaw);
+    const postID = await hash(postIDRaw);
+    const postKey = await hash(`${title}|${author}`);
 
     if (isDebugging) {
         console.log(`Post Key (title|author): ${titleRaw}|${author}`);
@@ -335,16 +346,16 @@ function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: b
     return { hideThisPost, hasUpdatesID };
 }
 
-function filterPostBySubreddit(element: Element, hideThisPost: boolean, hasUpdatesSubreddit: boolean) {
+async function filterPostBySubreddit(element: Element, hideThisPost: boolean, hasUpdatesSubreddit: boolean) {
     const content_href_raw = element.getAttribute('content-href')?.toLowerCase() || "";
     const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
     const subredditRaw = element.getAttribute('subreddit-name')?.toLowerCase() || "";
 
-    const content_href = hash(content_href_raw);
-    const author = hash(authorRaw);
-    const subreddit = hash(subredditRaw);
+    const content_href = await hash(content_href_raw);
+    const author = await hash(authorRaw);
+    const subreddit = await hash(subredditRaw);
 
-    const key = hash(`${content_href}|${author}`);
+    const key = await hash(`${content_href}|${author}`);
 
     if (isDebugging) {
         console.log(`Post Key (content-href|author): "${content_href_raw}|${authorRaw}", Subreddit: ${subredditRaw}`);
@@ -439,8 +450,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             console.log("Gallery post detected, image URLs: ", imageUrls);
         }
 
-        const fetchHash = await fetchGalleryHashes(imageUrls);
-        const combinedHash = fetchHash ? fetchHash.slice(0, 32) : ""; // Saving only the first 32 characters
+        const combinedHash = await fetchGalleryHashes(imageUrls);
 
         if (!combinedHash) {
             if (isDebugging) {
@@ -460,7 +470,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
 
         const storedMediaEntry = seenMedia[combinedHash];
         const postIDRaw = post.getAttribute('id') || "";
-        const postID = hash(postIDRaw);
+        const postID = await hash(postIDRaw);
 
         if (storedMediaEntry) {
             if (storedMediaEntry.postID != postID) {
@@ -488,8 +498,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
         const imageUrl = post.getAttribute('content-href');
         if (!imageUrl) return { hideThisPost, hasUpdatesMedia };
 
-        const fetchedHash = await fetchImageHash(imageUrl);
-        const key = fetchedHash ? fetchedHash.slice(0, 32) : "";
+        const key = await fetchImageHash(imageUrl);
 
         if (!key) {
             if (isDebugging) {
@@ -500,7 +509,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
 
         const storedMediaEntry = seenMedia[key];
         const postIDRaw = post.getAttribute('id') || "";
-        const postID = hash(postIDRaw);
+        const postID = await hash(postIDRaw);
 
         if (storedMediaEntry) {
             if (storedMediaEntry.postID != postID) {
@@ -545,7 +554,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
 
         // Hash the sorted concatenated string of hashes
         // We sort it to ensure the order doesn't matter
-        const combinedHash = hash(hashes.sort().join(''));
+        const combinedHash = await hash(hashes.sort().join(''));
         return combinedHash;
     }
 
@@ -687,10 +696,9 @@ async function filterByVideoHash(hideThisPost: boolean, post: Element) {
         return { hideThisPost, hasUpdatesMedia };
     }
 
-    const mediaHash = await fetchVideoHash();
-    const videoHash = mediaHash ? mediaHash.slice(0, 32) : ""; // Saving only the first 32 characters
+    const key = await fetchVideoHash();
 
-    if (!mediaHash || mediaHash.length < 32 || !videoHash) {
+    if (!key || key.length < 32 || !key) {
         if (isDebugging) {
             console.warn("(Video) Hash didn't work " + videoUrl);
         }
@@ -698,21 +706,21 @@ async function filterByVideoHash(hideThisPost: boolean, post: Element) {
     }
 
     if (isDebugging) {
-        console.log("Video hash: ", videoHash + " for URL: " + videoUrl + " Title: " + post.getAttribute('post-title'));
+        console.log("Video hash: ", key + " for URL: " + videoUrl + " Title: " + post.getAttribute('post-title'));
     }
 
-    const storedMediaEntry = seenMedia[videoHash];
+    const storedMediaEntry = seenMedia[key];
     const postIDRaw = post.getAttribute('id') || "";
-    const postID = hash(postIDRaw);
+    const postID = await hash(postIDRaw);
     if (storedMediaEntry) {
         if (storedMediaEntry.postID != postID) {
             hideThisPost = true;
             if (isDebugging) {
-                console.log(`Filtered duplicate based on video content hash: ${videoHash}`);
+                console.log(`Filtered duplicate based on video content hash: ${key}`);
             }
         }
     } else {
-        seenMedia[videoHash] = {
+        seenMedia[key] = {
             postID: postID,
             timestamp: Date.now()
         };
@@ -776,7 +784,7 @@ async function loadStorageData(): Promise<void> {
  * Initializes the extension by loading settings, storage data, and setting up observers.
  */
 async function initialize() {
-    await loadSettings();
+    await loadExtensionSettings();
     await loadStorageData();
     await checkIncognitoMode();
 

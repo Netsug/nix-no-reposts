@@ -30,7 +30,6 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.6",
-    "blueimp-md5": "^2.19.0",
     "ts": "file:"
   }
 }
