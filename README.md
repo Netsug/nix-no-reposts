@@ -1,4 +1,3 @@
-
 <p align="center">
     <img src=images/icon-256.png alt="icon" width=200/>
 </p>
@@ -6,29 +5,47 @@
 # Nix, No Reposts!
 
 Tired of seeing the same posts over and over on Reddit?
-This browser extension automatically filters out duplicate posts and crossposts across subreddits, giving you a cleaner, more streamlined browsing experience.
+This browser extension automatically filters out duplicate posts and crossposts across Reddit.
 
 ## Overview
 
 This extension helps you avoid seeing the same content multiple times while browsing Reddit by:
 
 - Filtering out duplicate posts that appear across different subreddits
+- Detecting and filtering duplicate media content (images, videos, galleries)
+- Selectively hiding different types of posts (text, image, video, link, gallery)
 - Optionally hiding crossposts
+- All with complete privacy - everything happens locally in your browser
 
 ## Features
 
-- **Duplicate Post Detection**: Identifies and hides posts with the same content that appear in multiple subreddits
-- **Title-based Filtering**: Can detect similar posts based on titles (configurable)
-- **Crosspost Filtering**: Option to hide all crossposts
-- **Automatic Cleanup**: Periodically removes old entries based on your preferred time threshold
-- **Incognito Mode Support**: Can be configured to work exclusively in incognito mode
-- **Privacy-Focused**: Uses MD5 hashing to avoid storing plain-text post data
+- **Comprehensive Duplicate Detection**:
+  - Content link + author-based filtering
+  - Title + author similarity detection
+  - Advanced media content matching (images, videos, galleries)
+  - Cross-subreddit duplicate detection
+  
+- **Customizable Post Type Filtering**:
+  - Text posts
+  - Image/GIF posts
+  - Video posts
+  - Gallery posts
+  - Link posts
+  - Crossposts
 
-### Customizable Settings:
-- Choose how long to remember seen posts (6 hours to never forget)
-- Toggle crosspost filtering
-- Enable less aggressive pruning for fewer false positives
-- Debug mode for troubleshooting
+- **Smart Memory Management**:
+  - Automatically removes old entries based on your preferred time threshold
+  - Configurable retention periods (6 hours to never forget)
+
+- **Privacy and Security**:
+  - Incognito Mode Support with exclusive mode option
+  - Uses MD5/SHA256 hashing for all stored data
+  - No server communication - everything stays in your browser
+  - Automatic data cleanup based on your settings
+
+- **Developer Features**:
+  - Optional debug mode
+  - Storage statistics and inspection tools
 
 ## Installation
 
@@ -42,40 +59,62 @@ This extension helps you avoid seeing the same content multiple times while brow
 
 Access the extension settings by clicking on the extension icon in your browser toolbar:
 
+### General Settings
 - **Delete Threshold**: How long to remember seen posts (6 hours, 1 day, 2 days, 1 week, 2 weeks, or never)
 - **Hide Crossposts**: Toggle filtering of all crossposts
 - **Less Aggressive Pruning**: Enable to reduce false positives when filtering similar posts
 - **Incognito Mode Only**: When enabled, the extension will only work in incognito windows
 - **Debug Mode**: Enable to see detailed logging in the console
 
+### Post Type Filtering
+Control exactly which types of posts are subject to duplicate filtering:
+- Hide Text Posts
+- Hide Image Posts
+- Hide Video Posts
+- Hide Gallery Posts
+- Hide Link Posts
+
+### Storage Management
+- View statistics on tracked entries and storage size
+- Reset settings to defaults
+- Delete all stored post data
+
 ## How It Works
 
-The extension scans Reddit posts as you browse and:
+The extension employs multiple techniques to detect duplicate content:
 
-1. Creates a unique hash for each post based on content link and author, or title and author
-2. Stores this information locally with a timestamp
-3. Compares new posts against previously seen content
-4. Hides duplicates according to your preferences
-5. Periodically cleans up old entries based on your chosen threshold
+1. **Content Link + Author Detection**: 
+   - Creates a unique hash from content URL + author
+   - Detects the same content shared by the same person across subreddits
 
-## Privacy
+2. **Title + Author Similarity**: 
+   - Creates a unique hash from post title + author
+   - Helps detect slightly modified reposts (can be disabled with "Less Aggressive Pruning")
 
-This extension:
+3. **Media Content Analysis**:
+   - For images: Creates content-based hashes to match visually identical images
+   - For videos: Analyzes video content to detect duplicates
+   - For galleries: Creates combined hashes of all images in the gallery
 
-- Works entirely in your browser
-- Does not send any data to external servers
-- Uses MD5 hashing to avoid storing plain-text post information. Only timestamps (and user settings) are stored locally not hashed.
-- Automatically cleans up old data based on your settings
+4. **Storage and Privacy**:
+   - All identifiers are stored as secure MD5/SHA256 hashes
+   - Data is automatically pruned based on your threshold settings
+   - Works entirely locally - no data is sent to servers
 
-## Development
+## Technical Details
 
-This extension is built with TypeScript for the backend, Tailwind CSS for the frontend, and uses the Chrome Extension API for browser integration.
+This extension is built with TypeScript for robustness and uses modern browser APIs for efficiency:
+
+- MutationObserver for real-time DOM monitoring
+- Chrome Storage API for persistent data storage
+- Background services for media content processing
+- Responsive settings UI with Tailwind CSS
 
 ### Project Structure
 
-- `content.ts`: Main filtering logic
-- `background.js`: Sees if the current window is in incognito
-- `options.html/options.js`: Settings interface
+- `content.ts`: Main filtering logic and post detection
+- `background.js`: Handles incognito detection and media processing
+- `options.html/options.ts`: Settings interface and storage management
 - `manifest.json`: Extension configuration
 
 ### Building from Source
@@ -83,6 +122,16 @@ This extension is built with TypeScript for the backend, Tailwind CSS for the fr
 1. Install dependencies: `npm install`
 2. Compile TypeScript: `npm run build`
 3. The compiled extension will be in the `dist` directory
+
+## Privacy Commitment
+
+Your privacy is our top priority:
+
+- No data ever leaves your browser
+- All post identifiers are stored as MD5/SHA256 hashes
+- No tracking or analytics
+- Automatic data cleanup based on your settings
+- Optional incognito-exclusive mode
 
 ## Contributions
 
