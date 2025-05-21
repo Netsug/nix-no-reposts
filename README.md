@@ -39,7 +39,7 @@ This extension helps you avoid seeing the same content multiple times while brow
 
 - **Privacy and Security**:
   - Incognito Mode Support with exclusive mode option
-  - Uses MD5/SHA256 hashing for all stored data
+  - Uses SHA256 hashing for all stored data
   - No server communication - everything stays in your browser
   - Automatic data cleanup based on your settings
 
@@ -97,7 +97,7 @@ The extension employs multiple techniques to detect duplicate content:
    - For galleries: Creates combined hashes of all images in the gallery
 
 4. **Storage and Privacy**:
-   - All identifiers are stored as secure MD5/SHA256 hashes
+   - All identifiers are stored as secure SHA256 hashes
    - Data is automatically pruned based on your threshold settings
    - Works entirely locally - no data is sent to servers
 
@@ -128,7 +128,7 @@ This extension is built with TypeScript for robustness and uses modern browser A
 Your privacy is our top priority:
 
 - No data ever leaves your browser
-- All post identifiers are stored as MD5/SHA256 hashes
+- All post identifiers are stored as SHA256 hashes
 - No tracking or analytics
 - Automatic data cleanup based on your settings
 - Optional incognito-exclusive mode
