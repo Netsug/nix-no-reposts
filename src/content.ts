@@ -197,7 +197,7 @@ async function filterPosts(): Promise<void> {
         // Check if the post has already been processed
         if (processedPosts.has(postID)) {
             if (isDebugging) {
-                console.log("Skipping already processed post: ", postID);
+                //console.log("Skipping already processed post: ", postID);
             }
             continue;
         }
@@ -346,10 +346,8 @@ function filterPostBySubreddit(element: Element, hideThisPost: boolean, hasUpdat
 
     const key = hash(`${content_href}|${author}`);
 
-    //const key = hash(`${content_href}`);
-
     if (isDebugging) {
-        console.log(`Post Key (content-href): ${content_href_raw}, Subreddit: ${subredditRaw}`);
+        console.log(`Post Key (content-href|author): "${content_href_raw}|${authorRaw}", Subreddit: ${subredditRaw}`);
     }
 
     const storedSubredditEntry = seenPostsSubreddit[key];
@@ -383,7 +381,13 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
     let hasUpdatesMedia = false;
     if (hideThisPost) return { hideThisPost, hasUpdatesMedia };
 
-    const isGallery = post.getAttribute("post-type") === "gallery";
+    const postType = post.getAttribute('post-type')?.toLowerCase() || "";
+    if (postType !== 'image' && postType !== 'gallery') {
+        // Not an image post
+        return { hideThisPost, hasUpdatesMedia };
+    }
+
+    const isGallery = postType === "gallery";
 
     if (isGallery) {
         const result = await processGalleryImages(post, hideThisPost);
@@ -539,8 +543,9 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             return "";
         }
 
-        // Hash the concatenated string of hashes
-        const combinedHash = hash(hashes.join(''));
+        // Hash the sorted concatenated string of hashes
+        // We sort it to ensure the order doesn't matter
+        const combinedHash = hash(hashes.sort().join(''));
         return combinedHash;
     }
 
