@@ -70,7 +70,7 @@ let isHideLinkPosts: boolean = true;
 /**
  * Hashes a string using SHA-256
  * @param data - String to hash
- * @returns SHA-256 hash as a hex string
+ * @returns SHA-256 hash as a hex string, truncated to 32 characters
  */
 async function hash(data: string): Promise<string> {
     // Use the Web Crypto API to create a SHA-256 hash

@@ -19,7 +19,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             .then(hashBuffer => {
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-                sendResponse({ hash: hashHex });
+                sendResponse({ hash: hashHex.slice(0, 32) });
             })
             .catch(error => {
                 console.error(`${message.type} fetch/hash error:`, error);
