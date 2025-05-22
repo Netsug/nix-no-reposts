@@ -129,6 +129,7 @@ Your privacy is our top priority:
 - No tracking or analytics
 - Automatic data cleanup based on your settings
 - All code is open source
+- View how the extension stores viewed posts in settings
 
 ## Contributions
 
