@@ -38,7 +38,6 @@ This extension helps you avoid seeing the same content multiple times while brow
   - Configurable retention periods (6 hours to never forget)
 
 - **Privacy and Security**:
-  - Incognito Mode Support with exclusive mode option
   - Uses SHA256 hashing for all stored data
   - No server communication - everything stays in your browser
   - Automatic data cleanup based on your settings
@@ -63,7 +62,6 @@ Access the extension settings by clicking on the extension icon in your browser 
 - **Delete Threshold**: How long to remember seen posts (6 hours, 1 day, 2 days, 1 week, 2 weeks, or never)
 - **Hide Crossposts**: Toggle filtering of all crossposts
 - **Less Aggressive Pruning**: Enable to reduce false positives when filtering similar posts
-- **Incognito Mode Only**: When enabled, the extension will only work in incognito windows
 - **Debug Mode**: Enable to see detailed logging in the console
 
 ### Post Type Filtering
@@ -113,7 +111,6 @@ This extension is built with TypeScript for robustness and uses modern browser A
 ### Project Structure
 
 - `content.ts`: Main filtering logic and post detection
-- `background.js`: Handles incognito detection and media processing
 - `options.html/options.ts`: Settings interface and storage management
 - `manifest.json`: Extension configuration
 
@@ -131,7 +128,7 @@ Your privacy is our top priority:
 - All post identifiers are stored as SHA256 hashes
 - No tracking or analytics
 - Automatic data cleanup based on your settings
-- Optional incognito-exclusive mode
+- All code is open source
 
 ## Contributions
 

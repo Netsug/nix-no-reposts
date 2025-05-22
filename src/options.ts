@@ -26,7 +26,6 @@ async function loadSettings() {
     const crosspostCheckbox = document.getElementById('crosspostCheckbox') as HTMLInputElement;
     const pruneCheckbox = document.getElementById('pruneCheckbox') as HTMLInputElement;
     const debugCheckbox = document.getElementById('debugModeCheckbox') as HTMLInputElement;
-    const incognitoModeCheckbox = document.getElementById('incognitoModeCheckbox') as HTMLInputElement;
     const hideText = document.getElementById('hideTextPostCheckbox') as HTMLInputElement;
     const hideLink = document.getElementById('hideLinkPostCheckbox') as HTMLInputElement;
     const hideImage = document.getElementById('hideImagePostCheckbox') as HTMLInputElement;
@@ -41,7 +40,6 @@ async function loadSettings() {
     crosspostCheckbox.checked = await loadSetting('hideCrossposts', false) as boolean;
     pruneCheckbox.checked = await loadSetting('lessAggressivePruning', false) as boolean;
     debugCheckbox.checked = await loadSetting('debugMode', false) as boolean;
-    incognitoModeCheckbox.checked = await loadSetting('incognitoExclusiveMode', false) as boolean;
     hideText.checked = await loadSetting('hideTextPosts', true) as boolean;
     hideLink.checked = await loadSetting('hideLinkPosts', true) as boolean;
     hideImage.checked = await loadSetting('hideImagePosts', true) as boolean;
@@ -66,7 +64,6 @@ function setupEventHandlers() {
     const rangeInput = document.getElementById('persistentStorage') as HTMLInputElement;
     const rangeLabel = document.getElementById('persistentStorageLabel')!;
     const crosspostCheckbox = document.getElementById('crosspostCheckbox') as HTMLInputElement;
-    const incognitoModeCheckbox = document.getElementById('incognitoModeCheckbox') as HTMLInputElement;
     const pruneCheckbox = document.getElementById('pruneCheckbox') as HTMLInputElement;
     const debugCheckbox = document.getElementById('debugModeCheckbox') as HTMLInputElement;
     const hideTextCheckbox = document.getElementById('hideTextPostCheckbox') as HTMLInputElement;
@@ -107,33 +104,6 @@ function setupEventHandlers() {
 
     hideGalleryCheckbox.addEventListener('change', () => {
         saveSetting('hideGalleryPosts', hideGalleryCheckbox.checked);
-    });
-
-    incognitoModeCheckbox.addEventListener('change', (e) => {
-        const target = e.target as HTMLInputElement;
-        if (target.checked) {
-            const modal = document.getElementById('incognitoWarningModal')!;
-            const cancelButton = document.getElementById('cancelButton')!;
-            const proceedButton = document.getElementById('proceedButton')!;
-
-            // Show the modal
-            modal.classList.remove('hidden');
-
-            // Handle cancel button
-            cancelButton.addEventListener('click', () => {
-                target.checked = false;
-                saveSetting('incognitoExclusiveMode', target.checked); // Revert the setting
-                modal.classList.add('hidden');
-            });
-
-            // Handle proceed button
-            proceedButton.addEventListener('click', () => {
-                saveSetting('incognitoExclusiveMode', target.checked);
-                modal.classList.add('hidden');
-            });
-        } else {
-            saveSetting('incognitoExclusiveMode', target.checked);
-        }
     });
 
     // Prune checkbox

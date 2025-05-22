@@ -18,7 +18,6 @@ type ExtensionSettings = {
     hideCrossposts?: boolean;
     debugMode?: boolean;
     lessAggressivePruning?: boolean;
-    incognitoExclusiveMode?: boolean;
     hideTextPosts?: boolean;
     hideImagePosts?: boolean;
     hideVideoPosts?: boolean;
@@ -60,7 +59,6 @@ let deleteThresholdDuration: number | null = 2 * 24 * 60 * 60 * 1_000; // Defaul
 let isHideCrossposts: boolean = false;
 let isDebugging: boolean = false;
 let lessAggressivePruning: boolean = false;
-let incognitoExclusiveMode: boolean = false;
 let isHideTextPosts: boolean = true;
 let isHideImageGIFPosts: boolean = true;
 let isHideVideoPosts: boolean = true;
@@ -92,7 +90,6 @@ async function loadExtensionSettings(): Promise<void> {
     isHideCrossposts = settings.hideCrossposts ?? isHideCrossposts;
     isDebugging = settings.debugMode ?? isDebugging;
     lessAggressivePruning = settings.lessAggressivePruning ?? lessAggressivePruning;
-    incognitoExclusiveMode = settings.incognitoExclusiveMode ?? incognitoExclusiveMode;
     isHideTextPosts = settings.hideTextPosts ?? isHideTextPosts;
     isHideImageGIFPosts = settings.hideImagePosts ?? isHideImageGIFPosts;
     isHideVideoPosts = settings.hideVideoPosts ?? isHideVideoPosts;
@@ -115,7 +112,6 @@ function getSettings(): Promise<ExtensionSettings> {
                 'hideCrossposts',
                 'debugMode',
                 'lessAggressivePruning',
-                'incognitoExclusiveMode',
                 'hideTextPosts',
                 'hideImagePosts',
                 'hideVideoPosts',
@@ -786,28 +782,6 @@ async function loadStorageData(): Promise<void> {
 async function initialize() {
     await loadExtensionSettings();
     await loadStorageData();
-    await checkIncognitoMode();
-
-    async function checkIncognitoMode() {
-        let isIncognitoWindow;
-
-        if (chrome.windows && await chrome.windows.getCurrent()) {
-            isIncognitoWindow = await new Promise<boolean>((resolve) => {
-                chrome.runtime.sendMessage({ type: 'getIncognitoStatus' }, (response) => {
-                    resolve(response?.isIncognito ?? false);
-                });
-            });
-        } else {
-            //console.log("Chrome.Windows API not supported");
-        }
-
-        if (incognitoExclusiveMode && !isIncognitoWindow) {
-            if (isDebugging) {
-                console.log("Incognito Exclusive Mode is enabled, but this window is not incognito. Exiting...");
-            }
-            return; // Exit if it's not an incognito window and exclusive mode is enabled
-        }
-    }
 
     await removeOldEntries();
     filterPosts();

@@ -1,13 +1,6 @@
 /* global chrome */
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'getIncognitoStatus') {
-        chrome.windows.getCurrent({}, (window) => {
-            sendResponse({ isIncognito: window?.incognito ?? false });
-        });
-        return true; // keep message channel open
-    }
-
     if (message.type === 'fetchAndHashVideo' || message.type === 'fetchAndHashImage') {
         fetch(message.url)
             .then(response => {
@@ -37,4 +30,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     
+});
+
+chrome.action.onClicked.addListener(() => {
+    chrome.runtime.openOptionsPage();
 });

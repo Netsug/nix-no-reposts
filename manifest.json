@@ -3,6 +3,13 @@
     "name": "Nix No Reposts",
     "version": "1.0",
     "description": "Filters Reddit posts so you only have to see each once.",
+    "action": {
+        "default_icon": {
+            "16": "images/icon-16.png",
+            "48": "images/icon-48.png",
+            "128": "images/icon-128.png"
+        }
+    },
     "icons": {
         "16": "images/icon-16.png",
         "48": "images/icon-48.png",
