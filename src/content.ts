@@ -1,14 +1,14 @@
-type SeenPostSubredditEntry = {
+type linkAuthorHashesEntry = {
     subreddit: string;
     timestamp: number; // Unix epoch in milliseconds
 };
 
-type SeenPostIDEntry = {
+type titleAuthorHashesEntry = {
     postID: string;
     timestamp: number;
 };
 
-type SeenMediaEntry = {
+type contentHashesEntry = {
     postID: string;
     timestamp: number;
 };
@@ -26,15 +26,9 @@ type ExtensionSettings = {
     hideLinkPosts: boolean;
 };
 
-type StorageData = {
-    seenPostsSubreddit: Record<string, SeenPostSubredditEntry>;
-    seenPostsID: Record<string, SeenPostIDEntry>;
-    seenMedia: Record<string, SeenMediaEntry>;
-};
-
-let seenPostsSubreddit: Record<string, SeenPostSubredditEntry> = {};
-let seenPostsID: Record<string, SeenPostIDEntry> = {};
-let seenMedia: Record<string, SeenMediaEntry> = {};
+let linkAuthorHashes: Record<string, linkAuthorHashesEntry> = {};
+let titleAuthorHashes: Record<string, titleAuthorHashesEntry> = {};
+let contentHashes: Record<string, contentHashesEntry> = {};
 
 /**
  * Converts the value from the range element (0-5) to milliseconds.
@@ -138,34 +132,34 @@ async function removeOldEntries(): Promise<void> {
     let entriesRemoved = 0;
 
     // Process subreddit entries
-    for (const [key, entry] of Object.entries(seenPostsSubreddit)) {
+    for (const [key, entry] of Object.entries(linkAuthorHashes)) {
         if (entry.timestamp < cutoffTime) {
             if (isDebugging) {
                 console.log(`Removing expired subreddit entry: ${key}`);
             }
-            delete seenPostsSubreddit[key];
+            delete linkAuthorHashes[key];
             entriesRemoved++;
         }
     }
 
     // Process postID entries
-    for (const [key, entry] of Object.entries(seenPostsID)) {
+    for (const [key, entry] of Object.entries(titleAuthorHashes)) {
         if (entry.timestamp < cutoffTime) {
             if (isDebugging) {
                 console.log(`Removing expired postID entry: ${key}`);
             }
-            delete seenPostsID[key];
+            delete titleAuthorHashes[key];
             entriesRemoved++;
         }
     }
 
     // Process Media entries
-    for (const [key, entry] of Object.entries(seenMedia)) {
+    for (const [key, entry] of Object.entries(contentHashes)) {
         if (entry.timestamp < cutoffTime) {
             if (isDebugging) {
                 console.log(`Removing expired postID entry: ${key}`);
             }
-            delete seenMedia[key];
+            delete contentHashes[key];
             entriesRemoved++;
         }
     }
@@ -173,8 +167,8 @@ async function removeOldEntries(): Promise<void> {
     if (entriesRemoved > 0) {
         // Save the pruned objects back to storage
         await Promise.all([
-            new Promise<void>((resolve) => chrome.storage.local.set({ seenPostsSubreddit }, resolve)),
-            new Promise<void>((resolve) => chrome.storage.local.set({ seenPostsID }, resolve))
+            new Promise<void>((resolve) => chrome.storage.local.set({ linkAuthorHashes }, resolve)),
+            new Promise<void>((resolve) => chrome.storage.local.set({ titleAuthorHashes }, resolve))
         ]);
 
         if (isDebugging) {
@@ -263,15 +257,15 @@ async function filterPosts(): Promise<void> {
         const promises: Promise<void>[] = [];
 
         if (hasUpdatesSubreddit) {
-            promises.push(chrome.storage.local.set({ seenPostsSubreddit }));
+            promises.push(chrome.storage.local.set({ linkAuthorHashes }));
         }
 
         if (hasUpdatesID) {
-            promises.push(chrome.storage.local.set({ seenPostsID }));
+            promises.push(chrome.storage.local.set({ titleAuthorHashes }));
         }
 
         if (hasUpdatesMedia) {
-            promises.push(chrome.storage.local.set({ seenMedia }));
+            promises.push(chrome.storage.local.set({ contentHashes }));
         }
 
         await Promise.all(promises);
@@ -324,7 +318,7 @@ async function filterPostByID(element: Element, hideThisPost: boolean, hasUpdate
         return { hideThisPost, hasUpdatesID };
     }
 
-    const storedTitleEntry = seenPostsID[postKey];
+    const storedTitleEntry = titleAuthorHashes[postKey];
     if (storedTitleEntry) {
         if (storedTitleEntry.postID !== postID) {
             hideThisPost = true;
@@ -333,7 +327,7 @@ async function filterPostByID(element: Element, hideThisPost: boolean, hasUpdate
             }
         }
     } else {
-        seenPostsID[postKey] = {
+        titleAuthorHashes[postKey] = {
             postID: postID,
             timestamp: now
         };
@@ -357,7 +351,7 @@ async function filterPostBySubreddit(element: Element, hideThisPost: boolean, ha
         console.log(`Post Key (content-href|author): "${content_href_raw}|${authorRaw}", Subreddit: ${subredditRaw}`);
     }
 
-    const storedSubredditEntry = seenPostsSubreddit[key];
+    const storedSubredditEntry = linkAuthorHashes[key];
 
     // If the entry exists... (if we have seen this content-link before)
     if (storedSubredditEntry) {
@@ -371,7 +365,7 @@ async function filterPostBySubreddit(element: Element, hideThisPost: boolean, ha
         }
     } else {
         // First time seeing this content+author combo. Add it to the storage.
-        seenPostsSubreddit[key] = {
+        linkAuthorHashes[key] = {
             subreddit: subreddit,
             timestamp: Date.now()
         };
@@ -409,7 +403,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
     return { hideThisPost, hasUpdatesMedia };
 
     /**
- * Processes gallery images: fetches image URLs, hashes them, and updates seenMedia.
+ * Processes gallery images: fetches image URLs, hashes them, and updates contentHashes.
  * 
  * @param post - The post element containing the gallery
  * @param hideThisPost - Flag to indicate if the post should be hidden
@@ -464,7 +458,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             return { hideThisPost, hasUpdatesMedia };
         }
 
-        const storedMediaEntry = seenMedia[combinedHash];
+        const storedMediaEntry = contentHashes[combinedHash];
         const postIDRaw = post.getAttribute('id') || "";
         const postID = await hash(postIDRaw);
 
@@ -476,7 +470,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
                 }
             }
         } else {
-            seenMedia[combinedHash] = { postID, timestamp: Date.now() };
+            contentHashes[combinedHash] = { postID, timestamp: Date.now() };
             hasUpdatesMedia = true;
         }
         return { hideThisPost, hasUpdatesMedia };
@@ -503,7 +497,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
             return { hideThisPost, hasUpdatesMedia };
         }
 
-        const storedMediaEntry = seenMedia[key];
+        const storedMediaEntry = contentHashes[key];
         const postIDRaw = post.getAttribute('id') || "";
         const postID = await hash(postIDRaw);
 
@@ -515,7 +509,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
                 }
             }
         } else {
-            seenMedia[key] = { postID, timestamp: Date.now() };
+            contentHashes[key] = { postID, timestamp: Date.now() };
             hasUpdatesMedia = true;
         }
         return { hideThisPost, hasUpdatesMedia };
@@ -705,7 +699,7 @@ async function filterByVideoHash(hideThisPost: boolean, post: Element) {
         console.log("Video hash: ", key + " for URL: " + videoUrl + " Title: " + post.getAttribute('post-title'));
     }
 
-    const storedMediaEntry = seenMedia[key];
+    const storedMediaEntry = contentHashes[key];
     const postIDRaw = post.getAttribute('id') || "";
     const postID = await hash(postIDRaw);
     if (storedMediaEntry) {
@@ -716,7 +710,7 @@ async function filterByVideoHash(hideThisPost: boolean, post: Element) {
             }
         }
     } else {
-        seenMedia[key] = {
+        contentHashes[key] = {
             postID: postID,
             timestamp: Date.now()
         };
@@ -759,20 +753,21 @@ async function filterByVideoHash(hideThisPost: boolean, post: Element) {
  * @returns 
  */
 async function loadStorageData(): Promise<void> {
-    const {
-        seenPostsSubreddit: storedSubredditPosts = {},
-        seenPostsID: storedIDPosts = {},
-        seenMedia: storedMedia = {},
-    } = await new Promise<Partial<StorageData & { seenMedia: Record<string, SeenMediaEntry> }>>((resolve) =>
-        chrome.storage.local.get(["seenPostsSubreddit", "seenPostsID", "seenMedia"],
-            (result) => resolve(result)));
+    const result = await new Promise((resolve) =>
+        chrome.storage.local.get(["linkAuthorHashes", "titleAuthorHashes", "contentHashes"],
+            (result) => resolve(result))
+    ) as { 
+        linkAuthorHashes?: Record<string, linkAuthorHashesEntry>, 
+        titleAuthorHashes?: Record<string, titleAuthorHashesEntry>, 
+        contentHashes?: Record<string, contentHashesEntry> 
+    };
 
-    seenPostsSubreddit = storedSubredditPosts;
-    seenPostsID = storedIDPosts;
-    seenMedia = storedMedia;
+    linkAuthorHashes = result.linkAuthorHashes || {};
+    titleAuthorHashes = result.titleAuthorHashes || {};
+    contentHashes = result.contentHashes || {};
 
     if (isDebugging) {
-        console.log(`Loaded ${Object.keys(seenPostsSubreddit).length} subreddit entries, ${Object.keys(seenPostsID).length} post ID entries, and ${Object.keys(seenMedia).length} media entries from storage`);
+        console.log(`Loaded ${Object.keys(linkAuthorHashes).length} subreddit entries, ${Object.keys(titleAuthorHashes).length} post ID entries, and ${Object.keys(contentHashes).length} media entries from storage`);
     }
 }
 

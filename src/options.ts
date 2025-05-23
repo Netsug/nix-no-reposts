@@ -139,7 +139,7 @@ function setupEventHandlers() {
         }
     });
 
-    const keysToKeep = ['seenPostsSubreddit', 'seenPostsID', 'seenMedia'];
+    const keysToKeep = ['linkAuthorHashes', 'titleAuthorHashes', 'contentHashes'];
 
     // Reset storage
     // This will remove all keys except the ones in keysToKeep
@@ -158,7 +158,7 @@ function setupEventHandlers() {
 
     // Delete storage
     deleteStorageButton.addEventListener('click', () => {
-        chrome.storage.local.remove(['seenPostsSubreddit', 'seenPostsID', 'seenMedia'], () => {
+        chrome.storage.local.remove(['linkAuthorHashes', 'titleAuthorHashes', 'contentHashes'], () => {
             updateStats();
             displayStoredPosts(); // Update the displayed stored posts (should be empty)
         });
@@ -191,7 +191,7 @@ function displayStoredPosts() {
         // Clear previous entries
         storedPostsList.innerHTML = '';
 
-        const relevantKeys = ['seenPostsSubreddit', 'seenPostsID', 'seenMedia'];
+        const relevantKeys = ['linkAuthorHashes', 'titleAuthorHashes', 'contentHashes'];
 
         relevantKeys.forEach(key => {
             if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -231,7 +231,7 @@ function updateStats() {
     const trackedEntries = document.getElementById('trackedEntries')!;
     const storageSize = document.getElementById('storageSize')!;
 
-    const keysToCheck = ['seenPostsSubreddit', 'seenPostsID', 'seenMedia'];
+    const keysToCheck = ['linkAuthorHashes', 'titleAuthorHashes', 'contentHashes'];
     let totalCount = 0;
     let totalSize = 0;
 
