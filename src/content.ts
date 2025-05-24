@@ -1,11 +1,6 @@
-type textHashesEntry = {
+type hashesEntry = {
     postID: string;
     timestamp: number; // Unix epoch in milliseconds
-};
-
-type contentHashesEntry = {
-    postID: string;
-    timestamp: number;
 };
 
 type ExtensionSettings = {
@@ -21,28 +16,10 @@ type ExtensionSettings = {
     hideLinkPosts?: boolean;
 };
 
-let linkAuthorHashes: Record<string, textHashesEntry> = {};
-let titleAuthorHashes: Record<string, textHashesEntry> = {};
-let contentHashes: Record<string, contentHashesEntry> = {};
-
-/**
- * Converts the value from the range element (0-5) to milliseconds.
- * 
- * @param val - The value from the range (0-5)
- * @returns milliseconds corresponding to the value
- * 0 = 6 hours, 1 = 1 day, 2 = 2 days, 3 = 1 week, 4 = 2 weeks, 5 = Never
- */
-function getThresholdMilliseconds(val: number): number | null {
-    const msValues = [
-        6 * 60 * 60 * 1000,         // 6 hours  - 0
-        24 * 60 * 60 * 1000,        // 1 day    - 1
-        2 * 24 * 60 * 60 * 1000,    // 2 days   - 2
-        7 * 24 * 60 * 60 * 1000,    // 1 week   - 3
-        14 * 24 * 60 * 60 * 1000,   // 2 weeks  - 4
-        null                        // Never    - 5
-    ];
-    return msValues[val] ?? null;
-}
+let linkAuthorHashes: Record<string, hashesEntry> = {};
+let titleAuthorHashes: Record<string, hashesEntry> = {};
+let contentHashes: Record<string, hashesEntry> = {};
+const processedPosts = new Set<string>();
 
 let deleteThresholdDuration: number | null = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
 let isHideCrossposts: boolean = false;
@@ -56,6 +33,7 @@ let isHideLinkPosts: boolean = true;
 
 /**
  * Hashes a string using SHA-256
+ * Only returns the first 32 characters of the hash
  * @param data - String to hash
  * @returns SHA-256 hash as a hex string, truncated to 32 characters
  */
@@ -70,109 +48,6 @@ async function hash(data: string): Promise<string> {
 
     return hashHex.slice(0, 32); // Return only the first 32 characters
 }
-
-async function loadExtensionSettings(): Promise<void> {
-    const settings = await getSettings();
-
-    // Use default values if the setting is not available
-    const deleteThresholdSetting = settings.deleteThreshold ?? 2;
-    isHideCrossposts = settings.hideCrossposts ?? isHideCrossposts;
-    isDebugging = settings.debugMode ?? isDebugging;
-    lessAggressivePruning = settings.lessAggressivePruning ?? lessAggressivePruning;
-    isHideTextPosts = settings.hideTextPosts ?? isHideTextPosts;
-    isHideImageGIFPosts = settings.hideImagePosts ?? isHideImageGIFPosts;
-    isHideVideoPosts = settings.hideVideoPosts ?? isHideVideoPosts;
-    isHideGalleryPosts = settings.hideGalleryPosts ?? isHideGalleryPosts;
-    isHideLinkPosts = settings.hideLinkPosts ?? isHideLinkPosts;
-
-    // Convert 0-5 to milliseconds
-    // 0 = 6 hours, 1 = 1 day, 2 = 2 days, 3 = 1 week, 4 = 2 weeks, 5 = Never
-    deleteThresholdDuration = getThresholdMilliseconds(deleteThresholdSetting);
-
-    if (isDebugging) {
-        console.log("Settings loaded: ", settings);
-    }
-}
-
-function getSettings(): Promise<ExtensionSettings> {
-    return new Promise((resolve) => {
-        chrome.storage.local.get(
-            ['deleteThreshold',
-                'hideCrossposts',
-                'debugMode',
-                'lessAggressivePruning',
-                'hideTextPosts',
-                'hideImagePosts',
-                'hideVideoPosts',
-                'hideGalleryPosts',
-                'hideLinkPosts'
-            ],
-            (result) => resolve(result as ExtensionSettings)
-        );
-    });
-}
-
-async function removeOldEntries(): Promise<void> {
-    // "Never" is selected
-    if (deleteThresholdDuration === null) {
-        return;
-    }
-
-    const now = Date.now();
-    const cutoffTime = now - deleteThresholdDuration;
-    if (isDebugging) {
-        console.log(`Cutoff time is ${new Date(cutoffTime).toISOString()}`);
-    }
-
-    let entriesRemoved = 0;
-
-    // Process subreddit entries
-    for (const [key, entry] of Object.entries(linkAuthorHashes)) {
-        if (entry.timestamp < cutoffTime) {
-            if (isDebugging) {
-                console.log(`Removing expired subreddit entry: ${key}`);
-            }
-            delete linkAuthorHashes[key];
-            entriesRemoved++;
-        }
-    }
-
-    // Process postID entries
-    for (const [key, entry] of Object.entries(titleAuthorHashes)) {
-        if (entry.timestamp < cutoffTime) {
-            if (isDebugging) {
-                console.log(`Removing expired postID entry: ${key}`);
-            }
-            delete titleAuthorHashes[key];
-            entriesRemoved++;
-        }
-    }
-
-    // Process Media entries
-    for (const [key, entry] of Object.entries(contentHashes)) {
-        if (entry.timestamp < cutoffTime) {
-            if (isDebugging) {
-                console.log(`Removing expired postID entry: ${key}`);
-            }
-            delete contentHashes[key];
-            entriesRemoved++;
-        }
-    }
-
-    if (entriesRemoved > 0) {
-        // Save the pruned objects back to storage
-        await Promise.all([
-            new Promise<void>((resolve) => chrome.storage.local.set({ linkAuthorHashes }, resolve)),
-            new Promise<void>((resolve) => chrome.storage.local.set({ titleAuthorHashes }, resolve))
-        ]);
-
-        if (isDebugging) {
-            console.log(`Removed ${entriesRemoved} expired entries`);
-        }
-    }
-}
-
-const processedPosts = new Set<string>();
 
 // Perform filtering and update seenPosts in memory.
 // Save to storage only if we added something new.
@@ -221,17 +96,17 @@ async function filterPosts(): Promise<void> {
     // An image post can be filtered by its ID for example.
     async function processPostFilters(hideThisPost: boolean, element: Element): Promise<boolean> {
         // Ordered from least intensive to most intensive
-        hideThisPost = filterPostByCrosspost(hideThisPost, element);
+        hideThisPost = filterCrosspost(hideThisPost, element);
 
         ({ hideThisPost, hasUpdatesSubreddit } = await filterContentAuthor(element, hideThisPost, hasUpdatesSubreddit));
 
         ({ hideThisPost, hasUpdatesID } = await filterTitleAuthor(element, hideThisPost, hasUpdatesID));
 
-        const imageResult = await filterByImageHash(hideThisPost, element);
+        const imageResult = await filterImageHash(hideThisPost, element);
         hideThisPost = imageResult.hideThisPost;
         hasUpdatesMedia = hasUpdatesMedia || imageResult.hasUpdatesMedia;
 
-        const videoResult = await filterByVideoHash(hideThisPost, element);
+        const videoResult = await filterVideoHash(hideThisPost, element);
         hideThisPost = videoResult.hideThisPost;
         hasUpdatesMedia = hasUpdatesMedia || videoResult.hasUpdatesMedia;
 
@@ -267,7 +142,7 @@ async function filterPosts(): Promise<void> {
     }
 }
 
-function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
+function filterCrosspost(hideThisPost: boolean, element: Element) {
     if (hideThisPost) {
         // Post already hidden
         return hideThisPost;
@@ -281,6 +156,10 @@ function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
         }
     }
     return hideThisPost;
+
+    function isCrosspost(element: Element): boolean {
+        return element?.hasAttribute('post-type') && element.getAttribute('post-type')?.toLowerCase() === 'crosspost';
+    }
 }
 
 // The other methods are most likely reliable enough to make this obsolete.
@@ -328,6 +207,11 @@ async function filterTitleAuthor(element: Element, hideThisPost: boolean, hasUpd
 }
 
 async function filterContentAuthor(element: Element, hideThisPost: boolean, hasUpdatesSubreddit: boolean) {
+    if (hideThisPost) {
+        // Post already hidden
+        return { hideThisPost, hasUpdatesSubreddit };
+    }
+
     const content_hrefRaw = element.getAttribute('content-href')?.toLowerCase() || "";
     const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
     const postIDRaw = element.getAttribute('id')?.toLowerCase() || "";
@@ -363,11 +247,7 @@ async function filterContentAuthor(element: Element, hideThisPost: boolean, hasU
     return { hideThisPost, hasUpdatesSubreddit };
 }
 
-function isCrosspost(element: Element): boolean {
-    return element?.hasAttribute('post-type') && element.getAttribute('post-type')?.toLowerCase() === 'crosspost';
-}
-
-async function filterByImageHash(hideThisPost: boolean, post: Element) {
+async function filterImageHash(hideThisPost: boolean, post: Element) {
     let hasUpdatesMedia = false;
     if (hideThisPost) return { hideThisPost, hasUpdatesMedia };
 
@@ -657,7 +537,7 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
  * @param post - The post element to filter
  * @returns 
  */
-async function filterByVideoHash(hideThisPost: boolean, post: Element) {
+async function filterVideoHash(hideThisPost: boolean, post: Element) {
     let hasUpdatesMedia: boolean = false;
 
     if (hideThisPost) {
@@ -745,41 +625,168 @@ async function filterByVideoHash(hideThisPost: boolean, post: Element) {
 }
 
 /**
- * Loads storage data from Chrome's local storage.
- * 
- * @returns 
- */
-async function loadStorageData(): Promise<void> {
-    const result = await new Promise((resolve) =>
-        chrome.storage.local.get(["linkAuthorHashes", "titleAuthorHashes", "contentHashes"],
-            (result) => resolve(result))
-    ) as { 
-        linkAuthorHashes?: Record<string, textHashesEntry>, 
-        titleAuthorHashes?: Record<string, textHashesEntry>, 
-        contentHashes?: Record<string, contentHashesEntry> 
-    };
-
-    linkAuthorHashes = result.linkAuthorHashes || {};
-    titleAuthorHashes = result.titleAuthorHashes || {};
-    contentHashes = result.contentHashes || {};
-
-    if (isDebugging) {
-        console.log(`Loaded ${Object.keys(linkAuthorHashes).length} subreddit entries, ${Object.keys(titleAuthorHashes).length} post ID entries, and ${Object.keys(contentHashes).length} media entries from storage`);
-    }
-}
-
-/**
  * Initializes the extension by loading settings, storage data, and setting up observers.
  */
 async function initialize() {
     await loadExtensionSettings();
     await loadStorageData();
-
     await removeOldEntries();
     filterPosts();
 
     setupObserver();
 
+    async function loadExtensionSettings(): Promise<void> {
+        const settings = await getSettings();
+
+        // Use default values if the setting is not available
+        const deleteThresholdSetting = settings.deleteThreshold ?? 2;
+        isHideCrossposts = settings.hideCrossposts ?? isHideCrossposts;
+        isDebugging = settings.debugMode ?? isDebugging;
+        lessAggressivePruning = settings.lessAggressivePruning ?? lessAggressivePruning;
+        isHideTextPosts = settings.hideTextPosts ?? isHideTextPosts;
+        isHideImageGIFPosts = settings.hideImagePosts ?? isHideImageGIFPosts;
+        isHideVideoPosts = settings.hideVideoPosts ?? isHideVideoPosts;
+        isHideGalleryPosts = settings.hideGalleryPosts ?? isHideGalleryPosts;
+        isHideLinkPosts = settings.hideLinkPosts ?? isHideLinkPosts;
+
+        // Convert 0-5 to milliseconds
+        // 0 = 6 hours, 1 = 1 day, 2 = 2 days, 3 = 1 week, 4 = 2 weeks, 5 = Never
+        deleteThresholdDuration = getThresholdMilliseconds(deleteThresholdSetting);
+
+        if (isDebugging) {
+            console.log("Settings loaded: ", settings);
+        }
+
+        function getSettings(): Promise<ExtensionSettings> {
+            return new Promise((resolve) => {
+                chrome.storage.local.get(
+                    ['deleteThreshold',
+                        'hideCrossposts',
+                        'debugMode',
+                        'lessAggressivePruning',
+                        'hideTextPosts',
+                        'hideImagePosts',
+                        'hideVideoPosts',
+                        'hideGalleryPosts',
+                        'hideLinkPosts'
+                    ],
+                    (result) => resolve(result as ExtensionSettings)
+                );
+            });
+        }
+
+        /**
+         * Converts the value from the range element (0-5) to milliseconds.
+         * 
+         * @param val - The value from the range (0-5)
+         * @returns milliseconds corresponding to the value
+         * 0 = 6 hours, 1 = 1 day, 2 = 2 days, 3 = 1 week, 4 = 2 weeks, 5 = Never
+         */
+        function getThresholdMilliseconds(val: number): number | null {
+            const msValues = [
+                6 * 60 * 60 * 1000,         // 6 hours  - 0
+                24 * 60 * 60 * 1000,        // 1 day    - 1
+                2 * 24 * 60 * 60 * 1000,    // 2 days   - 2
+                7 * 24 * 60 * 60 * 1000,    // 1 week   - 3
+                14 * 24 * 60 * 60 * 1000,   // 2 weeks  - 4
+                null                        // Never    - 5
+            ];
+            return msValues[val] ?? null;
+        }
+    }
+
+    /**
+     * Loads storage data from Chrome's local storage.
+     * 
+     * @returns 
+     */
+    async function loadStorageData(): Promise<void> {
+        const result = await new Promise((resolve) =>
+            chrome.storage.local.get(["linkAuthorHashes", "titleAuthorHashes", "contentHashes"],
+                (result) => resolve(result))
+        ) as {
+            linkAuthorHashes?: Record<string, hashesEntry>,
+            titleAuthorHashes?: Record<string, hashesEntry>,
+            contentHashes?: Record<string, hashesEntry>
+        };
+
+        linkAuthorHashes = result.linkAuthorHashes || {};
+        titleAuthorHashes = result.titleAuthorHashes || {};
+        contentHashes = result.contentHashes || {};
+
+        if (isDebugging) {
+            console.log(`Loaded ${Object.keys(linkAuthorHashes).length} subreddit entries, ${Object.keys(titleAuthorHashes).length} post ID entries, and ${Object.keys(contentHashes).length} media entries from storage`);
+        }
+    }
+
+    /**
+     * Removes old entries from the storage based on the delete threshold.
+     * 
+     * @returns 
+     */
+    async function removeOldEntries(): Promise<void> {
+        // "Never" is selected
+        if (deleteThresholdDuration === null) {
+            return;
+        }
+
+        const now = Date.now();
+        const cutoffTime = now - deleteThresholdDuration;
+        if (isDebugging) {
+            console.log(`Cutoff time is ${new Date(cutoffTime).toISOString()}`);
+        }
+
+        let entriesRemoved = 0;
+
+        // Process subreddit entries
+        for (const [key, entry] of Object.entries(linkAuthorHashes)) {
+            if (entry.timestamp < cutoffTime) {
+                if (isDebugging) {
+                    console.log(`Removing expired subreddit entry: ${key}`);
+                }
+                delete linkAuthorHashes[key];
+                entriesRemoved++;
+            }
+        }
+
+        // Process postID entries
+        for (const [key, entry] of Object.entries(titleAuthorHashes)) {
+            if (entry.timestamp < cutoffTime) {
+                if (isDebugging) {
+                    console.log(`Removing expired postID entry: ${key}`);
+                }
+                delete titleAuthorHashes[key];
+                entriesRemoved++;
+            }
+        }
+
+        // Process Media entries
+        for (const [key, entry] of Object.entries(contentHashes)) {
+            if (entry.timestamp < cutoffTime) {
+                if (isDebugging) {
+                    console.log(`Removing expired postID entry: ${key}`);
+                }
+                delete contentHashes[key];
+                entriesRemoved++;
+            }
+        }
+
+        if (entriesRemoved > 0) {
+            // Save the pruned objects back to storage
+            await Promise.all([
+                new Promise<void>((resolve) => chrome.storage.local.set({ linkAuthorHashes }, resolve)),
+                new Promise<void>((resolve) => chrome.storage.local.set({ titleAuthorHashes }, resolve))
+            ]);
+
+            if (isDebugging) {
+                console.log(`Removed ${entriesRemoved} expired entries`);
+            }
+        }
+    }    
+
+    /**
+     * Sets up a MutationObserver to watch for changes in the DOM and trigger filtering.
+     */
     function setupObserver() {
         // Run filterPosts() every time the DOM changes
         // Debounced observer to avoid excessive triggering

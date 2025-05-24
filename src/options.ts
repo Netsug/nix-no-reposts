@@ -53,12 +53,6 @@ function formatThresholdLabel(value: number): string {
     return labels[value] ?? 'Unknown';
 }
 
-// Function to handle checkbox toggles and save settings
-/*function toggleCheckbox(checkbox: HTMLInputElement) {
-    const key = checkbox.id;
-    saveSetting(key, checkbox.checked);
-}*/
-
 // Set up event listeners
 function setupEventHandlers() {
     const rangeInput = document.getElementById('persistentStorage') as HTMLInputElement;
