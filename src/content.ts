@@ -1,11 +1,6 @@
-type linkAuthorHashesEntry = {
-    subreddit: string;
-    timestamp: number; // Unix epoch in milliseconds
-};
-
-type titleAuthorHashesEntry = {
+type textHashesEntry = {
     postID: string;
-    timestamp: number;
+    timestamp: number; // Unix epoch in milliseconds
 };
 
 type contentHashesEntry = {
@@ -23,11 +18,11 @@ type ExtensionSettings = {
     hideVideoPosts?: boolean;
     hideGalleryPosts?: boolean;
     hideMediaPosts?: boolean;
-    hideLinkPosts: boolean;
+    hideLinkPosts?: boolean;
 };
 
-let linkAuthorHashes: Record<string, linkAuthorHashesEntry> = {};
-let titleAuthorHashes: Record<string, titleAuthorHashesEntry> = {};
+let linkAuthorHashes: Record<string, textHashesEntry> = {};
+let titleAuthorHashes: Record<string, textHashesEntry> = {};
 let contentHashes: Record<string, contentHashesEntry> = {};
 
 /**
@@ -228,9 +223,9 @@ async function filterPosts(): Promise<void> {
         // Ordered from least intensive to most intensive
         hideThisPost = filterPostByCrosspost(hideThisPost, element);
 
-        ({ hideThisPost, hasUpdatesSubreddit } = await filterPostBySubreddit(element, hideThisPost, hasUpdatesSubreddit));
+        ({ hideThisPost, hasUpdatesSubreddit } = await filterContentAuthor(element, hideThisPost, hasUpdatesSubreddit));
 
-        ({ hideThisPost, hasUpdatesID } = await filterPostByID(element, hideThisPost, hasUpdatesID));
+        ({ hideThisPost, hasUpdatesID } = await filterTitleAuthor(element, hideThisPost, hasUpdatesID));
 
         const imageResult = await filterByImageHash(hideThisPost, element);
         hideThisPost = imageResult.hideThisPost;
@@ -291,25 +286,21 @@ function filterPostByCrosspost(hideThisPost: boolean, element: Element) {
 // The other methods are most likely reliable enough to make this obsolete.
 // I.e this causes more trouble than it solves.
 // TO-maybe-DO: Remove this? 
-async function filterPostByID(element: Element, hideThisPost: boolean, hasUpdatesID: boolean) {
+async function filterTitleAuthor(element: Element, hideThisPost: boolean, hasUpdatesID: boolean) {
     if (hideThisPost) {
         // Post already hidden;
         return { hideThisPost, hasUpdatesID };
     }
 
-    const now = Date.now();
+    const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
+    const titleRaw = element.getAttribute('post-title')?.toLowerCase() || "";
+    const postIDRaw = element.getAttribute('id')?.toLowerCase() || "";
 
-    const authorRaw = element.getAttribute('author') || "";
-    const titleRaw = element.getAttribute('post-title') || "";
-    const postIDRaw = element.getAttribute('id') || "";
-
-    const title = await hash(titleRaw);
-    const author = await hash(authorRaw);
     const postID = await hash(postIDRaw);
-    const postKey = await hash(`${title}|${author}`);
+    const postKey = await hash(`${titleRaw}|${authorRaw}`);
 
     if (isDebugging) {
-        console.log(`Post Key (title|author): ${titleRaw}|${author}`);
+        console.log(`Post Key (title|author): ${titleRaw}|${authorRaw}, postID: ${postIDRaw}`);
     }
 
     // It's rare, but there are are cases where one user can have multiple posts with the same title.
@@ -318,9 +309,9 @@ async function filterPostByID(element: Element, hideThisPost: boolean, hasUpdate
         return { hideThisPost, hasUpdatesID };
     }
 
-    const storedTitleEntry = titleAuthorHashes[postKey];
-    if (storedTitleEntry) {
-        if (storedTitleEntry.postID !== postID) {
+    const postEntry = titleAuthorHashes[postKey];
+    if (postEntry) {
+        if (postEntry.postID !== postID) {
             hideThisPost = true;
             if (isDebugging) {
                 console.log(`Filtered duplicate with similar title: ${titleRaw}`);
@@ -329,44 +320,42 @@ async function filterPostByID(element: Element, hideThisPost: boolean, hasUpdate
     } else {
         titleAuthorHashes[postKey] = {
             postID: postID,
-            timestamp: now
+            timestamp: Date.now()
         };
         hasUpdatesID = true;
     }
     return { hideThisPost, hasUpdatesID };
 }
 
-async function filterPostBySubreddit(element: Element, hideThisPost: boolean, hasUpdatesSubreddit: boolean) {
-    const content_href_raw = element.getAttribute('content-href')?.toLowerCase() || "";
+async function filterContentAuthor(element: Element, hideThisPost: boolean, hasUpdatesSubreddit: boolean) {
+    const content_hrefRaw = element.getAttribute('content-href')?.toLowerCase() || "";
     const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
-    const subredditRaw = element.getAttribute('subreddit-name')?.toLowerCase() || "";
+    const postIDRaw = element.getAttribute('id')?.toLowerCase() || "";
+    
+    const postID = await hash(postIDRaw);
 
-    const content_href = await hash(content_href_raw);
-    const author = await hash(authorRaw);
-    const subreddit = await hash(subredditRaw);
-
-    const key = await hash(`${content_href}|${author}`);
+    const key = await hash(`${content_hrefRaw}|${authorRaw}`);
 
     if (isDebugging) {
-        console.log(`Post Key (content-href|author): "${content_href_raw}|${authorRaw}", Subreddit: ${subredditRaw}`);
+        console.log(`Post Key (content-href|author): "${content_hrefRaw}|${authorRaw}", postID: ${postIDRaw}`);
     }
 
-    const storedSubredditEntry = linkAuthorHashes[key];
+    const postEntry = linkAuthorHashes[key];
 
     // If the entry exists... (if we have seen this content-link before)
-    if (storedSubredditEntry) {
-        // and the entry's subreddit is not equal to this <article> subreddit
-        if (storedSubredditEntry.subreddit !== subreddit) {
+    if (postEntry) {
+        // and the entry's postID is not equal to this <article> postID
+        if (postEntry.postID !== postID) {
             // Hide it
             hideThisPost = true;
             if (isDebugging) {
-                console.log(`Filtered duplicate from another subreddit: ${subredditRaw} , with content-href: ${content_href_raw}`);
+                console.log(`Filtered duplicate from another : ${postID} , with content-href: ${content_hrefRaw}`);
             }
         }
     } else {
         // First time seeing this content+author combo. Add it to the storage.
         linkAuthorHashes[key] = {
-            subreddit: subreddit,
+            postID: postID,
             timestamp: Date.now()
         };
         hasUpdatesSubreddit = true;
@@ -484,6 +473,10 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
      * @returns 
      */
     async function processSingleImage(post: Element, hideThisPost: boolean): Promise<{ hideThisPost: boolean, hasUpdatesMedia: boolean }> {
+        
+        // TODO: Two of the same images but different sizes are not filtered out.
+        
+
         let hasUpdatesMedia = false;
         const imageUrl = post.getAttribute('content-href');
         if (!imageUrl) return { hideThisPost, hasUpdatesMedia };
@@ -500,6 +493,10 @@ async function filterByImageHash(hideThisPost: boolean, post: Element) {
         const storedMediaEntry = contentHashes[key];
         const postIDRaw = post.getAttribute('id') || "";
         const postID = await hash(postIDRaw);
+
+        if (isDebugging) {
+            console.log("Image hash: ", key + " for URL: " + imageUrl + " Title: " + post.getAttribute('post-title'));
+        }
 
         if (storedMediaEntry) {
             if (storedMediaEntry.postID != postID) {
@@ -757,8 +754,8 @@ async function loadStorageData(): Promise<void> {
         chrome.storage.local.get(["linkAuthorHashes", "titleAuthorHashes", "contentHashes"],
             (result) => resolve(result))
     ) as { 
-        linkAuthorHashes?: Record<string, linkAuthorHashesEntry>, 
-        titleAuthorHashes?: Record<string, titleAuthorHashesEntry>, 
+        linkAuthorHashes?: Record<string, textHashesEntry>, 
+        titleAuthorHashes?: Record<string, textHashesEntry>, 
         contentHashes?: Record<string, contentHashesEntry> 
     };
 
@@ -794,7 +791,7 @@ async function initialize() {
                 clearTimeout(debounceTimer);
                 debounceTimer = window.setTimeout(() => {
                     filterPosts();
-                }, 100); // 100 milliseconds after the last DOM change is made, call filterPosts()
+                }, 50); // milliseconds after the last DOM change is made, call filterPosts()
             });
 
             observer.observe(document.body, { childList: true, subtree: true });
