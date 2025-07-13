@@ -39,6 +39,9 @@ let isHideLinkPosts: boolean = true;
  */
 async function hash(data: string): Promise<string> {
     // Use the Web Crypto API to create a SHA-256 hash
+
+    const HASH_LENGTH = 32; // We only need the first 32 characters
+
     const msgUint8 = new TextEncoder().encode(data);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
 
@@ -46,7 +49,7 @@ async function hash(data: string): Promise<string> {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    return hashHex.slice(0, 32); // Return only the first 32 characters
+    return hashHex.slice(0, HASH_LENGTH); // Return only the first 32 characters
 }
 
 // Perform filtering and update seenPosts in memory.
@@ -322,11 +325,6 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
             console.log("Combined hash: ", combinedHash);
         }
 
-        if (combinedHash.length < 32) {
-            console.warn("Combined hash is too short: ", combinedHash);
-            return { hideThisPost, hasUpdatesMedia };
-        }
-
         const storedMediaEntry = contentHashes[combinedHash];
         const postIDRaw = post.getAttribute('id') || "";
         const postID = await hash(postIDRaw);
@@ -355,7 +353,6 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
     async function processSingleImage(post: Element, hideThisPost: boolean): Promise<{ hideThisPost: boolean, hasUpdatesMedia: boolean }> {
         
         // TODO: Two of the same images but different sizes are not filtered out.
-        
 
         let hasUpdatesMedia = false;
         const imageUrl = post.getAttribute('content-href');
