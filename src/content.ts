@@ -21,7 +21,7 @@ let titleAuthorHashes: Record<string, hashesEntry> = {};
 let contentHashes: Record<string, hashesEntry> = {};
 const processedPosts = new Set<string>();
 
-let deleteThresholdDuration: number | null = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
+let deleteThresholdDuration: number  = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
 let isHideCrossposts: boolean = false;
 let isDebugging: boolean = false;
 let lessAggressivePruning: boolean = false;
@@ -679,16 +679,16 @@ async function initialize() {
          * @returns milliseconds corresponding to the value
          * 0 = 6 hours, 1 = 1 day, 2 = 2 days, 3 = 1 week, 4 = 2 weeks, 5 = Never
          */
-        function getThresholdMilliseconds(val: number): number | null {
+        function getThresholdMilliseconds(val: number): number {
             const msValues = [
                 6 * 60 * 60 * 1000,         // 6 hours  - 0
                 24 * 60 * 60 * 1000,        // 1 day    - 1
                 2 * 24 * 60 * 60 * 1000,    // 2 days   - 2
                 7 * 24 * 60 * 60 * 1000,    // 1 week   - 3
                 14 * 24 * 60 * 60 * 1000,   // 2 weeks  - 4
-                null                        // Never    - 5
+                Infinity                    // Never    - 5
             ];
-            return msValues[val] ?? null;
+            return msValues[val];
         }
     }
 
@@ -723,7 +723,7 @@ async function initialize() {
      */
     async function removeOldEntries(): Promise<void> {
         // "Never" is selected
-        if (deleteThresholdDuration === null) {
+        if (deleteThresholdDuration === Infinity) {
             return;
         }
 
