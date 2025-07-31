@@ -137,4 +137,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-GPLv3
+This extension is licensed under GPLv3. Source code and license: https://github.com/Netsug/nix-no-reposts
