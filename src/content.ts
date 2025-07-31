@@ -117,13 +117,17 @@ async function filterPosts(): Promise<void> {
     }
 
     function shouldHidePostBasedOnType(postType: string): boolean {
-        return (postType === 'crosspost' && isHideCrossposts) ||
-            (postType === 'text' && isHideTextPosts) ||
-            (postType === 'video' && isHideVideoPosts) ||
-            (postType === 'gallery' && isHideGalleryPosts) ||
-            ((postType === 'gif' || postType === 'image') && isHideImageGIFPosts) ||
-            (postType === 'link' && isHideLinkPosts)
-            ;
+        const hideFlags: Record<string, boolean> = {
+            crosspost: isHideCrossposts,
+            text: isHideTextPosts,
+            video: isHideVideoPosts,
+            gallery: isHideGalleryPosts,
+            gif: isHideImageGIFPosts,
+            image: isHideImageGIFPosts,
+            link: isHideLinkPosts,
+        };
+
+        return !!hideFlags[postType];
     }
 
     async function updatePostStorage(): Promise<void> {
