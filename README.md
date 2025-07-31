@@ -77,7 +77,7 @@ chrome://extensions/
 
 Enable "Developer mode" (toggle in top right).
 
-Click "Load unpacked" and select the dist folder (or whatever your build output directory is).
+Click "Load unpacked" and select the nix-no-reposts folder.
 
 4. Navigate to Reddit and enjoy a cleaner feed!
 
