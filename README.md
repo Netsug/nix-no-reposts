@@ -70,7 +70,10 @@ npm run build
 
 3. Load in Chrome/Edge:
 
-Open Chrome/Edge and navigate to chrome://extensions/.
+Open Chrome/Edge and navigate to 
+```
+chrome://extensions/
+``` 
 
 Enable "Developer mode" (toggle in top right).
 
