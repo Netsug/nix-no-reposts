@@ -138,5 +138,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 GPLv3
-
-Made with ❤️ for Reddit users tired of seeing the same content multiple times.
