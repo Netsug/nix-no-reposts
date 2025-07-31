@@ -70,9 +70,9 @@ npm run build
 
 3. Load in Chrome/Edge:
 
-- Open Chrome/Edge and navigate to chrome://extensions/
-- Enable "Developer mode" (toggle in top right)
-- Click "Load unpacked" and select the dist folder (or whatever your build output directory is)
+Open Chrome/Edge and navigate to chrome://extensions/
+Enable "Developer mode" (toggle in top right)
+Click "Load unpacked" and select the dist folder (or whatever your build output directory is)
 
 4. Navigate to Reddit and enjoy a cleaner feed!
 
