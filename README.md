@@ -48,11 +48,33 @@ This extension helps you avoid seeing the same content multiple times while brow
 
 ## Installation
 
-1. Download or clone this repository
-2. Open Chrome/Edge and navigate to `chrome://extensions/`
-3. Enable "Developer mode"
-4. Click "Load unpacked" and select the directory containing this extension
-5. Navigate to Reddit and enjoy a cleaner feed!
+## Prerequisites
+- Node.js (version 16 or higher)
+- npm or yarn package manager
+
+
+## Setup Instructions
+
+1. Clone and install dependencies:
+
+```bash
+git clone https://github.com/Netsug/nix-no-reposts
+cd nix-no-reposts
+npm install
+```
+
+2. Build the extension:
+```bash
+npm run build
+```
+
+3. Load in Chrome/Edge:
+
+- Open Chrome/Edge and navigate to chrome://extensions/
+- Enable "Developer mode" (toggle in top right)
+- Click "Load unpacked" and select the dist folder (or whatever your build output directory is)
+
+4. Navigate to Reddit and enjoy a cleaner feed!
 
 ## Configuration
 
