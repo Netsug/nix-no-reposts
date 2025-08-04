@@ -31,6 +31,12 @@ let isHideVideoPosts: boolean = true;
 let isHideGalleryPosts: boolean = true;
 let isHideLinkPosts: boolean = true;
 
+const debug = {
+    log: (...args: unknown[]) => isDebugging && console.log(...args),
+    warn: (...args: unknown[]) => isDebugging && console.warn(...args),
+    error: (...args: unknown[]) => isDebugging && console.error(...args)
+};
+
 /**
  * Hashes a string using SHA-256
  * Only returns the first 32 characters of the hash
@@ -70,9 +76,7 @@ async function filterPosts(): Promise<void> {
 
         // Check if the post has already been processed
         if (processedPosts.has(postID)) {
-            if (isDebugging) {
-                //console.log("Skipping already processed post: ", postID);
-            }
+            debug.log("Skipping already processed post: ", postID);
             continue;
         }
         if (postID) {
@@ -157,11 +161,10 @@ function filterCrosspost(hideThisPost: boolean, element: Element) {
 
     hideThisPost = isCrosspost(element);
 
-    if (isDebugging) {
-        if (hideThisPost) {
-            console.log("Filtered post based on crosspost");
-        }
+    if (hideThisPost) {
+        debug.log("Filtered post based on crosspost");
     }
+    
     return hideThisPost;
 
     function isCrosspost(element: Element): boolean {
@@ -185,9 +188,7 @@ async function filterTitleAuthor(element: Element, hideThisPost: boolean, hasUpd
     const postID = await hash(postIDRaw);
     const postKey = await hash(`${titleRaw}|${authorRaw}`);
 
-    if (isDebugging) {
-        console.log(`Post Key (title|author): ${titleRaw}|${authorRaw}, postID: ${postIDRaw}`);
-    }
+    debug.log(`Post Key (title|author): ${titleRaw}|${authorRaw}, postID: ${postIDRaw}`);
 
     // It's rare, but there are are cases where one user can have multiple posts with the same title.
     // And the content being different.
@@ -199,9 +200,8 @@ async function filterTitleAuthor(element: Element, hideThisPost: boolean, hasUpd
     if (postEntry) {
         if (postEntry.postID !== postID) {
             hideThisPost = true;
-            if (isDebugging) {
-                console.log(`Filtered duplicate with similar title: ${titleRaw}`);
-            }
+            
+            debug.log(`Filtered duplicate with similar title: ${titleRaw}`);
         }
     } else {
         titleAuthorHashes[postKey] = {
@@ -227,9 +227,7 @@ async function filterContentAuthor(element: Element, hideThisPost: boolean, hasU
 
     const key = await hash(`${content_hrefRaw}|${authorRaw}`);
 
-    if (isDebugging) {
-        console.log(`Post Key (content-href|author): "${content_hrefRaw}|${authorRaw}", postID: ${postIDRaw}`);
-    }
+    debug.log(`Post Key (content-href|author): "${content_hrefRaw}|${authorRaw}", postID: ${postIDRaw}`)
 
     const postEntry = linkAuthorHashes[key];
 
@@ -239,9 +237,7 @@ async function filterContentAuthor(element: Element, hideThisPost: boolean, hasU
         if (postEntry.postID !== postID) {
             // Hide it
             hideThisPost = true;
-            if (isDebugging) {
-                console.log(`Filtered duplicate from another : ${postID} , with content-href: ${content_hrefRaw}`);
-            }
+            debug.log(`Filtered duplicate from another : ${postID} , with content-href: ${content_hrefRaw}`);
         }
     } else {
         // First time seeing this content+author combo. Add it to the storage.
@@ -289,9 +285,7 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
         let hasUpdatesMedia = false;
         const contentRefUrl = post.getAttribute('content-href');
         if (!contentRefUrl) {
-            if (isDebugging) {
-                console.warn('No content-href attribute on gallery post');
-            }
+            debug.log('No content-href attribute on gallery post');
             return { hideThisPost, hasUpdatesMedia };
         }
 
@@ -299,35 +293,25 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
         try {
             imageUrls = await fetchGalleryImageUrls(contentRefUrl);
         } catch (e) {
-            if (isDebugging) {
-                console.error('Failed to get gallery images:', e);
-            }
+            debug.error('Failed to get gallery images:', e);
             return { hideThisPost, hasUpdatesMedia };
         }
 
         if (imageUrls.length === 0) {
-            if (isDebugging) {
-                console.warn("No images found in gallery post");
-            }
+            debug.warn("No images found in gallery post: ", contentRefUrl);
             return { hideThisPost, hasUpdatesMedia };
         }
 
-        if (isDebugging) {
-            console.log("Gallery post detected, image URLs: ", imageUrls);
-        }
+        debug.log("Gallery post detected, image URLs: ", imageUrls);
 
         const combinedHash = await fetchGalleryHashes(imageUrls);
 
         if (!combinedHash) {
-            if (isDebugging) {
-                console.warn("Gallery hash failed for: ", contentRefUrl);
-            }
+            debug.warn("Gallery hash failed for: ", contentRefUrl);
             return { hideThisPost, hasUpdatesMedia };
         }
 
-        if (isDebugging) {
-            console.log("Combined hash: ", combinedHash);
-        }
+        debug.log("Combined hash: ", combinedHash);
 
         const storedMediaEntry = contentHashes[combinedHash];
         const postIDRaw = post.getAttribute('id') || "";
@@ -336,9 +320,8 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
         if (storedMediaEntry) {
             if (storedMediaEntry.postID != postID) {
                 hideThisPost = true;
-                if (isDebugging) {
-                    console.log(`Filtered duplicate based on gallery content hash: ${combinedHash}`);
-                }
+
+                debug.log(`Filtered duplicate gallery post with content-href: ${contentRefUrl}`);
             }
         } else {
             contentHashes[combinedHash] = { postID, timestamp: Date.now() };
@@ -365,9 +348,7 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
         const key = await fetchImageHash(imageUrl);
 
         if (!key) {
-            if (isDebugging) {
-                console.warn("Image hash failed for:", imageUrl);
-            }
+            debug.warn("Image hash failed for:", imageUrl);
             return { hideThisPost, hasUpdatesMedia };
         }
 
@@ -375,16 +356,12 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
         const postIDRaw = post.getAttribute('id') || "";
         const postID = await hash(postIDRaw);
 
-        if (isDebugging) {
-            console.log("Image hash: ", key + " for URL: " + imageUrl + " Title: " + post.getAttribute('post-title'));
-        }
+        debug.log("Image hash: ", key + " for URL: " + imageUrl + " Title: " + post.getAttribute('post-title'));
 
         if (storedMediaEntry) {
             if (storedMediaEntry.postID != postID) {
                 hideThisPost = true;
-                if (isDebugging) {
-                    console.log(`Filtered duplicate based on media content hash: ${key}, URL: ${imageUrl}`);
-                }
+                debug.log(`Filtered duplicate based on media content hash: ${key}, URL: ${imageUrl}`);
             }
         } else {
             contentHashes[key] = { postID, timestamp: Date.now() };
@@ -407,16 +384,13 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
             if (hash) {
                 hashes.push(hash);
             } else {
-                if (isDebugging) {
-                    console.warn("Failed to fetch image hash for URL: ", imageUrl);
-                }
+                debug.warn("Failed to fetch image hash for URL: ", imageUrl);
             }
         }
 
         if (hashes.length === 0) {
-            if (isDebugging) {
-                console.warn("No hashes found for gallery images");
-            }
+            debug.warn("No hashes found for gallery images");
+
             return "";
         }
 
@@ -567,15 +541,11 @@ async function filterVideoHash(hideThisPost: boolean, post: Element) {
     const key = await fetchVideoHash();
 
     if (!key || key.length < 32 || !key) {
-        if (isDebugging) {
-            console.warn("(Video) Hash didn't work " + videoUrl);
-        }
+        debug.warn("(Video) Hash didn't work " + videoUrl);
         return { hideThisPost, hasUpdatesMedia };
     }
 
-    if (isDebugging) {
-        console.log("Video hash: ", key + " for URL: " + videoUrl + " Title: " + post.getAttribute('post-title'));
-    }
+    debug.log("Video hash: ", key + " for URL: " + videoUrl + " Title: " + post.getAttribute('post-title'));
 
     const storedMediaEntry = contentHashes[key];
     const postIDRaw = post.getAttribute('id') || "";
@@ -583,9 +553,7 @@ async function filterVideoHash(hideThisPost: boolean, post: Element) {
     if (storedMediaEntry) {
         if (storedMediaEntry.postID != postID) {
             hideThisPost = true;
-            if (isDebugging) {
-                console.log(`Filtered duplicate based on video content hash: ${key}`);
-            }
+            debug.log(`Filtered duplicate based on video content hash: ${key}`);
         }
     } else {
         contentHashes[key] = {
@@ -654,9 +622,7 @@ async function initialize() {
         // 0 = 6 hours, 1 = 1 day, 2 = 2 days, 3 = 1 week, 4 = 2 weeks, 5 = Never
         deleteThresholdDuration = getThresholdMilliseconds(deleteThresholdSetting);
 
-        if (isDebugging) {
-            console.log("Settings loaded: ", settings);
-        }
+        debug.log("Settings loaded: ", settings);
 
         function getSettings(): Promise<ExtensionSettings> {
             return new Promise((resolve) => {
@@ -715,9 +681,7 @@ async function initialize() {
         titleAuthorHashes = result.titleAuthorHashes || {};
         contentHashes = result.contentHashes || {};
 
-        if (isDebugging) {
-            console.log(`Loaded ${Object.keys(linkAuthorHashes).length} subreddit entries, ${Object.keys(titleAuthorHashes).length} post ID entries, and ${Object.keys(contentHashes).length} media entries from storage`);
-        }
+        debug.log(`Loaded ${Object.keys(linkAuthorHashes).length} subreddit entries, ${Object.keys(titleAuthorHashes).length} post ID entries, and ${Object.keys(contentHashes).length} media entries from storage`);
     }
 
     /**
@@ -733,18 +697,14 @@ async function initialize() {
 
         const now = Date.now();
         const cutoffTime = now - deleteThresholdDuration;
-        if (isDebugging) {
-            console.log(`Cutoff time is ${new Date(cutoffTime).toISOString()}`);
-        }
+        debug.log(`Cutoff time is ${new Date(cutoffTime).toISOString()}`);
 
         let entriesRemoved = 0;
 
         // Process subreddit entries
         for (const [key, entry] of Object.entries(linkAuthorHashes)) {
             if (entry.timestamp < cutoffTime) {
-                if (isDebugging) {
-                    console.log(`Removing expired subreddit entry: ${key}`);
-                }
+                debug.log(`Removing expired subreddit entry: ${key}`);
                 delete linkAuthorHashes[key];
                 entriesRemoved++;
             }
@@ -753,9 +713,7 @@ async function initialize() {
         // Process postID entries
         for (const [key, entry] of Object.entries(titleAuthorHashes)) {
             if (entry.timestamp < cutoffTime) {
-                if (isDebugging) {
-                    console.log(`Removing expired postID entry: ${key}`);
-                }
+                debug.log(`Removing expired postID entry: ${key}`);
                 delete titleAuthorHashes[key];
                 entriesRemoved++;
             }
@@ -764,9 +722,7 @@ async function initialize() {
         // Process Media entries
         for (const [key, entry] of Object.entries(contentHashes)) {
             if (entry.timestamp < cutoffTime) {
-                if (isDebugging) {
-                    console.log(`Removing expired postID entry: ${key}`);
-                }
+                debug.log(`Removing expired postID entry: ${key}`);
                 delete contentHashes[key];
                 entriesRemoved++;
             }
@@ -779,9 +735,7 @@ async function initialize() {
                 new Promise<void>((resolve) => chrome.storage.local.set({ titleAuthorHashes }, resolve))
             ]);
 
-            if (isDebugging) {
-                console.log(`Removed ${entriesRemoved} expired entries`);
-            }
+            debug.log(`Removed ${entriesRemoved} expired entries`);
         }
     }    
 
