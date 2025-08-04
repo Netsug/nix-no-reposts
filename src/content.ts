@@ -73,7 +73,7 @@ async function filterPosts(): Promise<void> {
         const element = post.querySelector('shreddit-post');
         if (!element) continue;
 
-        const postID = element.getAttribute('id') || "";
+        const postID = element?.getAttribute('id') ?? "";
 
         // Check if the post has already been processed
         if (processedPosts.has(postID)) {
@@ -187,9 +187,9 @@ async function filterTitleAuthor(element: Element, hideThisPost: boolean, hasUpd
         return { hideThisPost, hasUpdatesID };
     }
 
-    const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
-    const titleRaw = element.getAttribute('post-title')?.toLowerCase() || "";
-    const postIDRaw = element.getAttribute('id')?.toLowerCase() || "";
+    const authorRaw = element.getAttribute('author')?.toLowerCase() ?? "";
+    const titleRaw = element.getAttribute('post-title')?.toLowerCase() ?? "";
+    const postIDRaw = element.getAttribute('id')?.toLowerCase() ?? "";
 
     const postID = await generateSHA256Hash(postIDRaw);
     const postKey = await generateSHA256Hash(`${titleRaw}|${authorRaw}`);
@@ -225,9 +225,9 @@ async function filterContentAuthor(element: Element, hideThisPost: boolean, hasU
         return { hideThisPost, hasUpdatesSubreddit };
     }
 
-    const content_hrefRaw = element.getAttribute('content-href')?.toLowerCase() || "";
-    const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
-    const postIDRaw = element.getAttribute('id')?.toLowerCase() || "";
+    const content_hrefRaw = element.getAttribute('content-href')?.toLowerCase() ?? "";
+    const authorRaw = element.getAttribute('author')?.toLowerCase() ?? "";
+    const postIDRaw = element.getAttribute('id')?.toLowerCase() ?? "";
     
     const postID = await generateSHA256Hash(postIDRaw);
 
@@ -260,7 +260,7 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
     let hasUpdatesMedia = false;
     if (hideThisPost) return { hideThisPost, hasUpdatesMedia };
 
-    const postType = post.getAttribute('post-type')?.toLowerCase() || "";
+    const postType = post.getAttribute('post-type')?.toLowerCase() ?? "";
     if (postType !== 'image' && postType !== 'gallery') {
         // Not an image post
         return { hideThisPost, hasUpdatesMedia };
@@ -320,7 +320,7 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
         debug.log("Combined hash: ", combinedHash);
 
         const storedMediaEntry = contentHashes[combinedHash];
-        const postIDRaw = post.getAttribute('id') || "";
+        const postIDRaw = post.getAttribute('id') ?? "";
         const postID = await generateSHA256Hash(postIDRaw);
 
         if (storedMediaEntry) {
@@ -359,7 +359,7 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
         }
 
         const storedMediaEntry = contentHashes[imageHash];
-        const postIDRaw = post.getAttribute('id') || "";
+        const postIDRaw = post.getAttribute('id') ?? "";
         const postID = await generateSHA256Hash(postIDRaw);
 
         debug.log("Image hash: ", imageHash + " for URL: " + imageUrl + " Title: " + post.getAttribute('post-title'));
@@ -527,7 +527,7 @@ async function filterVideoHash(hideThisPost: boolean, post: Element) {
         return { hideThisPost, hasUpdatesMedia };
     }
 
-    const postType = post.getAttribute('post-type')?.toLowerCase() || "";
+    const postType = post.getAttribute('post-type')?.toLowerCase() ?? "";
     if (postType !== 'video') {
         // Not a video post
         return { hideThisPost, hasUpdatesMedia };
@@ -555,7 +555,7 @@ async function filterVideoHash(hideThisPost: boolean, post: Element) {
     debug.log("Video hash: ", key + " for URL: " + videoUrl + " Title: " + post.getAttribute('post-title'));
 
     const storedMediaEntry = contentHashes[key];
-    const postIDRaw = post.getAttribute('id') || "";
+    const postIDRaw = post.getAttribute('id') ?? "";
     const postID = await generateSHA256Hash(postIDRaw);
     if (storedMediaEntry) {
         if (storedMediaEntry.postID != postID) {
