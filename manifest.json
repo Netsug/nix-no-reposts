@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Nix No Reposts",
-    "version": "1.0",
+    "version": "1.1",
     "description": "Filters Reddit posts so you only have to see each once.",
     "action": {
         "default_icon": {
