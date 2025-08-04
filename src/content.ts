@@ -69,6 +69,7 @@ async function filterPosts(): Promise<void> {
 
     // Iterate through all posts to apply filtering logic based on user settings
     for (const post of posts) {
+        try{
         const element = post.querySelector('shreddit-post');
         if (!element) continue;
 
@@ -93,6 +94,11 @@ async function filterPosts(): Promise<void> {
 
         if (hideThisPost) {
             (post as HTMLElement).style.display = 'none';
+        }
+    }
+    catch (error) {
+            debug.error("Error filterPosts: ", error);
+            continue;
         }
     };
 
