@@ -43,7 +43,7 @@ const debug = {
  * @param data - String to hash
  * @returns SHA-256 hash as a hex string, truncated to 32 characters
  */
-async function hash(data: string): Promise<string> {
+async function generateSHA256Hash(data: string): Promise<string> {
     // Use the Web Crypto API to create a SHA-256 hash
 
     const HASH_LENGTH = 32; // We only need the first 32 characters
@@ -185,8 +185,8 @@ async function filterTitleAuthor(element: Element, hideThisPost: boolean, hasUpd
     const titleRaw = element.getAttribute('post-title')?.toLowerCase() || "";
     const postIDRaw = element.getAttribute('id')?.toLowerCase() || "";
 
-    const postID = await hash(postIDRaw);
-    const postKey = await hash(`${titleRaw}|${authorRaw}`);
+    const postID = await generateSHA256Hash(postIDRaw);
+    const postKey = await generateSHA256Hash(`${titleRaw}|${authorRaw}`);
 
     debug.log(`Post Key (title|author): ${titleRaw}|${authorRaw}, postID: ${postIDRaw}`);
 
@@ -223,13 +223,13 @@ async function filterContentAuthor(element: Element, hideThisPost: boolean, hasU
     const authorRaw = element.getAttribute('author')?.toLowerCase() || "";
     const postIDRaw = element.getAttribute('id')?.toLowerCase() || "";
     
-    const postID = await hash(postIDRaw);
+    const postID = await generateSHA256Hash(postIDRaw);
 
-    const key = await hash(`${content_hrefRaw}|${authorRaw}`);
+    const hash = await generateSHA256Hash(`${content_hrefRaw}|${authorRaw}`);
 
     debug.log(`Post Key (content-href|author): "${content_hrefRaw}|${authorRaw}", postID: ${postIDRaw}`)
 
-    const postEntry = linkAuthorHashes[key];
+    const postEntry = linkAuthorHashes[hash];
 
     // If the entry exists... (if we have seen this content-link before)
     if (postEntry) {
@@ -241,7 +241,7 @@ async function filterContentAuthor(element: Element, hideThisPost: boolean, hasU
         }
     } else {
         // First time seeing this content+author combo. Add it to the storage.
-        linkAuthorHashes[key] = {
+        linkAuthorHashes[hash] = {
             postID: postID,
             timestamp: Date.now()
         };
@@ -315,7 +315,7 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
 
         const storedMediaEntry = contentHashes[combinedHash];
         const postIDRaw = post.getAttribute('id') || "";
-        const postID = await hash(postIDRaw);
+        const postID = await generateSHA256Hash(postIDRaw);
 
         if (storedMediaEntry) {
             if (storedMediaEntry.postID != postID) {
@@ -345,26 +345,26 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
         const imageUrl = post.getAttribute('content-href');
         if (!imageUrl) return { hideThisPost, hasUpdatesMedia };
 
-        const key = await fetchImageHash(imageUrl);
+        const imageHash = await fetchImageHash(imageUrl);
 
-        if (!key) {
+        if (!imageHash) {
             debug.warn("Image hash failed for:", imageUrl);
             return { hideThisPost, hasUpdatesMedia };
         }
 
-        const storedMediaEntry = contentHashes[key];
+        const storedMediaEntry = contentHashes[imageHash];
         const postIDRaw = post.getAttribute('id') || "";
-        const postID = await hash(postIDRaw);
+        const postID = await generateSHA256Hash(postIDRaw);
 
-        debug.log("Image hash: ", key + " for URL: " + imageUrl + " Title: " + post.getAttribute('post-title'));
+        debug.log("Image hash: ", imageHash + " for URL: " + imageUrl + " Title: " + post.getAttribute('post-title'));
 
         if (storedMediaEntry) {
             if (storedMediaEntry.postID != postID) {
                 hideThisPost = true;
-                debug.log(`Filtered duplicate based on media content hash: ${key}, URL: ${imageUrl}`);
+                debug.log(`Filtered duplicate based on media content hash: ${imageHash}, URL: ${imageUrl}`);
             }
         } else {
-            contentHashes[key] = { postID, timestamp: Date.now() };
+            contentHashes[imageHash] = { postID, timestamp: Date.now() };
             hasUpdatesMedia = true;
         }
         return { hideThisPost, hasUpdatesMedia };
@@ -396,7 +396,7 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
 
         // Hash the sorted concatenated string of hashes
         // We sort it to ensure the order doesn't matter
-        const combinedHash = await hash(hashes.sort().join(''));
+        const combinedHash = await generateSHA256Hash(hashes.sort().join(''));
         return combinedHash;
     }
 
@@ -479,6 +479,7 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
      * @returns 
      */
     async function fetchImageHash(imageUrl: string) {
+        // Race condition pattern. Whichever resolves first wins.
         return await new Promise<string | null>((resolve) => {
             const timeoutId = setTimeout(() => {
                 console.warn('Timeout waiting for background response');
@@ -541,7 +542,7 @@ async function filterVideoHash(hideThisPost: boolean, post: Element) {
     const key = await fetchVideoHash();
 
     if (!key || key.length < 32 || !key) {
-        debug.warn("(Video) Hash didn't work " + videoUrl);
+        debug.warn("Video-hash didn't work " + videoUrl);
         return { hideThisPost, hasUpdatesMedia };
     }
 
@@ -549,7 +550,7 @@ async function filterVideoHash(hideThisPost: boolean, post: Element) {
 
     const storedMediaEntry = contentHashes[key];
     const postIDRaw = post.getAttribute('id') || "";
-    const postID = await hash(postIDRaw);
+    const postID = await generateSHA256Hash(postIDRaw);
     if (storedMediaEntry) {
         if (storedMediaEntry.postID != postID) {
             hideThisPost = true;
