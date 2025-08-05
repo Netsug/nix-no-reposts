@@ -488,22 +488,36 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
         // Race condition pattern. Whichever resolves first wins.
         return await new Promise<string | null>((resolve) => {
             const timeoutId = setTimeout(() => {
-                console.warn('Timeout waiting for background response');
+                debug.warn('Timeout waiting for background response');
                 resolve(null);
-            }, 5000); // 5 seconds timeout
+            }, 15000); // 15 seconds timeout
 
             chrome.runtime.sendMessage(
                 { type: 'fetchAndHashImage', url: imageUrl },
                 (response) => {
                     clearTimeout(timeoutId);
                     if (chrome.runtime.lastError) {
-                        console.error('chrome.runtime.lastError:', chrome.runtime.lastError.message);
+                        debug.error('chrome.runtime.lastError:', chrome.runtime.lastError.message);
                         resolve(null);
                         return;
                     }
-                    if (response && response.hash) {
+
+                    if (!response) {
+                        debug.error('No response received from background script');
+                        resolve(null);
+                        return;
+                    }
+
+                    if (response.error) {
+                        debug.error('Background script error:', response.error);
+                        resolve(null);
+                        return;
+                    }
+
+                    if (response.hash && response.hash.length >= 32) {
                         resolve(response.hash);
                     } else {
+                        debug.warn('Invalid hash received:', response.hash);
                         resolve(null);
                     }
                 }
@@ -545,25 +559,25 @@ async function filterVideoHash(hideThisPost: boolean, post: Element) {
         return { hideThisPost, hasUpdatesMedia };
     }
 
-    const key = await fetchVideoHash();
+    const hash = await fetchVideoHash();
 
-    if (!key || key.length < 32 || !key) {
+    if (!hash || hash.length < 32) {
         debug.warn("Video-hash didn't work " + videoUrl);
         return { hideThisPost, hasUpdatesMedia };
     }
 
-    debug.log("Video hash: ", key + " for URL: " + videoUrl + " Title: " + post.getAttribute('post-title'));
+    debug.log("Video hash: ", hash + " for URL: " + videoUrl + " Title: " + post.getAttribute('post-title'));
 
-    const storedMediaEntry = contentHashes[key];
+    const storedMediaEntry = contentHashes[hash];
     const postIDRaw = post.getAttribute('id') ?? "";
     const postID = await generateSHA256Hash(postIDRaw);
     if (storedMediaEntry) {
         if (storedMediaEntry.postID != postID) {
             hideThisPost = true;
-            debug.log(`Filtered duplicate based on video content hash: ${key}`);
+            debug.log(`Filtered duplicate based on video content hash: ${hash}`);
         }
     } else {
-        contentHashes[key] = {
+        contentHashes[hash] = {
             postID: postID,
             timestamp: Date.now()
         };
@@ -576,22 +590,36 @@ async function filterVideoHash(hideThisPost: boolean, post: Element) {
     async function fetchVideoHash() {
         return await new Promise<string | null>((resolve) => {
             const timeoutId = setTimeout(() => {
-                console.warn('Timeout waiting for background response');
+                debug.warn('Timeout waiting for background response');
                 resolve(null);
-            }, 5000); // 5 seconds timeout
+            }, 15000); // 15 seconds timeout
 
             chrome.runtime.sendMessage(
                 { type: 'fetchAndHashVideo', url: videoUrl },
                 (response) => {
                     clearTimeout(timeoutId);
                     if (chrome.runtime.lastError) {
-                        console.error('chrome.runtime.lastError:', chrome.runtime.lastError.message);
+                        debug.error('chrome.runtime.lastError:', chrome.runtime.lastError.message);
                         resolve(null);
                         return;
                     }
-                    if (response && response.hash) {
+
+                    if (!response) {
+                        debug.error('No response received from background script for video');
+                        resolve(null);
+                        return;
+                    }
+
+                    if (response.error) {
+                        debug.error('Background script video error:', response.error);
+                        resolve(null);
+                        return;
+                    }
+
+                    if (response.hash && response.hash.length >= 32) {
                         resolve(response.hash);
                     } else {
+                        debug.warn('Invalid video hash received:', response.hash);
                         resolve(null);
                     }
                 }
