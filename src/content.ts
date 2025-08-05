@@ -21,7 +21,7 @@ let titleAuthorHashes: Record<string, hashesEntry> = {};
 let contentHashes: Record<string, hashesEntry> = {};
 const processedPosts = new Set<string>();
 
-let deleteThresholdDuration: number  = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
+let deleteThresholdDuration: number = 2 * 24 * 60 * 60 * 1_000; // Default 2 days in milliseconds (changeable via settings)
 let isHideCrossposts: boolean = false;
 let isDebugging: boolean = false;
 let lessAggressivePruning: boolean = false;
@@ -69,34 +69,34 @@ async function filterPosts(): Promise<void> {
 
     // Iterate through all posts to apply filtering logic based on user settings
     for (const post of posts) {
-        try{
-        const element = post.querySelector('shreddit-post');
-        if (!element) continue;
+        try {
+            const element = post.querySelector('shreddit-post');
+            if (!element) continue;
 
-        const postID = element?.getAttribute('id') ?? "";
+            const postID = element?.getAttribute('id') ?? "";
 
-        // Check if the post has already been processed
-        if (processedPosts.has(postID)) {
-            debug.log("Skipping already processed post: ", postID);
-            continue;
+            // Check if the post has already been processed
+            if (processedPosts.has(postID)) {
+                debug.log("Skipping already processed post: ", postID);
+                continue;
+            }
+            if (postID) {
+                processedPosts.add(postID);
+            }
+
+            const postType = element?.getAttribute('post-type')?.toLowerCase() ?? "";
+            let hideThisPost: boolean = false;
+
+            // Check if the post type should be hidden based on settings
+            if (shouldHidePostBasedOnType(postType)) {
+                hideThisPost = await processPostFilters(hideThisPost, element);
+            }
+
+            if (hideThisPost) {
+                (post as HTMLElement).style.display = 'none';
+            }
         }
-        if (postID) {
-            processedPosts.add(postID);
-        }
-
-        const postType = element?.getAttribute('post-type')?.toLowerCase() ?? "";
-        let hideThisPost: boolean = false;
-
-        // Check if the post type should be hidden based on settings
-        if (shouldHidePostBasedOnType(postType)) {
-            hideThisPost = await processPostFilters(hideThisPost, element);
-        }
-
-        if (hideThisPost) {
-            (post as HTMLElement).style.display = 'none';
-        }
-    }
-    catch (error) {
+        catch (error) {
             debug.error("Error filterPosts: ", error);
             continue;
         }
@@ -170,7 +170,7 @@ function filterCrosspost(hideThisPost: boolean, element: Element) {
     if (hideThisPost) {
         debug.log("Filtered post based on crosspost");
     }
-    
+
     return hideThisPost;
 
     function isCrosspost(element: Element): boolean {
@@ -206,7 +206,7 @@ async function filterTitleAuthor(element: Element, hideThisPost: boolean, hasUpd
     if (postEntry) {
         if (postEntry.postID !== postID) {
             hideThisPost = true;
-            
+
             debug.log(`Filtered duplicate with similar title: ${titleRaw}`);
         }
     } else {
@@ -228,7 +228,7 @@ async function filterContentAuthor(element: Element, hideThisPost: boolean, hasU
     const content_hrefRaw = element.getAttribute('content-href')?.toLowerCase() ?? "";
     const authorRaw = element.getAttribute('author')?.toLowerCase() ?? "";
     const postIDRaw = element.getAttribute('id')?.toLowerCase() ?? "";
-    
+
     const postID = await generateSHA256Hash(postIDRaw);
 
     const hash = await generateSHA256Hash(`${content_hrefRaw}|${authorRaw}`);
@@ -344,7 +344,7 @@ async function filterImageHash(hideThisPost: boolean, post: Element) {
      * @returns 
      */
     async function processSingleImage(post: Element, hideThisPost: boolean): Promise<{ hideThisPost: boolean, hasUpdatesMedia: boolean }> {
-        
+
         // TODO: Two of the same images but different sizes are not filtered out.
 
         let hasUpdatesMedia = false;
@@ -772,7 +772,7 @@ async function initialize() {
 
             debug.log(`Removed ${entriesRemoved} expired entries`);
         }
-    }    
+    }
 
     /**
      * Sets up a MutationObserver to watch for changes in the DOM and trigger filtering.
